@@ -30,7 +30,7 @@ Comisario de carrera para **Assetto Corsa**: una app Lua de Custom Shaders Patch
 ## Requisitos
 
 - Assetto Corsa en PC con Content Manager.
-- Custom Shaders Patch con las apps Lua activas. Probado con la versión 0.3.0-preview520.
+- Custom Shaders Patch con las apps Lua activas. Probado con la versión 0.2.11.
 
 ## Instalación
 

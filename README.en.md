@@ -25,7 +25,7 @@ A race steward for **Assetto Corsa**: a Custom Shaders Patch Lua app that watche
 ## Requirements
 
 - Assetto Corsa on PC with Content Manager.
-- Custom Shaders Patch with Lua apps enabled. Tested with version 0.3.0-preview520.
+- Custom Shaders Patch with Lua apps enabled. Tested with version 0.2.11.
 
 ## Install
 
