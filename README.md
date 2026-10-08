@@ -20,7 +20,7 @@ Comisario de carrera para **Assetto Corsa**: una app Lua de Custom Shaders Patch
 - **Banderas**: verde, amarilla, azul, blanca, a cuadros y negra, más amarilla total y roja decretadas por la dirección de carrera.
 - **Salida parada o lanzada**: con vuelta de formación completa o corta (los autos parten en fila cerca de la meta), velocímetro contra el límite y semáforo verde.
 - **Sesiones**: en práctica solo cuenta, en clasificación solo invalida la vuelta, en carrera sanciona.
-- **IA**: también es vigilada y cumple en pista, si la pista permite controlarla.
+- **IA**: también es vigilada y cumple en pista, si la pista permite controlarla (sin probar todavía en el juego; ver más abajo).
 - **Online**: cada piloto es vigilado por su propia app y todas se avisan entre sí. Un director de carrera impone su reglamento y las banderas a todo el servidor.
 - **Un reglamento por defecto**, con cada valor ajustable: sanciones de tiempo para los límites de pista y los contactos, y drive-through, stop and go o descalificación para pits, salida en falso y banderas.
 - **Ganador con las sanciones aplicadas**: al terminar, la app anuncia quién ganó de verdad.
@@ -60,7 +60,7 @@ Sin el script, todo lo demás funciona igual: la app avisa y sanciona.
 
 Conviene saber esto antes de usarlo en una liga:
 
-- Probado en el juego por su autor en carreras offline y en un servidor propio con uno o dos pilotos: sanciones, salida lanzada corta, envío a pits del descalificado, administrador, interfaz fija e íconos. No se ha probado con grillas grandes ni en servidores públicos.
+- Probado en el juego por su autor solo, sin IA en pista, y en un servidor propio con uno o dos pilotos: sanciones, salida lanzada corta, envío a pits del descalificado, administrador, interfaz fija e íconos. No se ha probado con grillas grandes ni en servidores públicos.
 - Las banderas con varios autos en pista, la dirección de carrera entre varios pilotos y el aviso de ganador solo están verificados con el simulador de pruebas de este repositorio.
 - La descalificación no expulsa a nadie del servidor: deja al piloto último en la clasificación de Comisario y, con el script del servidor, en pits con el auto sin controles. La tabla final del juego no cambia.
 - La clave de administrador frena a un piloto común, no a alguien que modifique el código de su app: todo corre en el PC de cada piloto.
@@ -68,6 +68,7 @@ Conviene saber esto antes de usarlo en una liga:
 - No incluye cruce de la línea de salida de pits, DRS ni coche de seguridad.
 - La vuelta de formación completa cuenta como vuelta de carrera para el juego; la salida corta no.
 - La salida corta lleva los autos a la fila durante la cuenta regresiva. Conviene dejar la salida en falso del servidor en "auto bloqueado hasta la largada": con las otras opciones no está probado.
+- Todo lo relacionado con la IA (sus sanciones, que cumpla en pista, la salida lanzada contra bots) solo está verificado con el simulador de pruebas: no se ha probado en el juego con bots. Si lo pruebas, se agradece el reporte.
 - Controlar a la IA requiere autorizar la pista (la app modifica `surfaces.ini` y guarda un respaldo).
 
 ## Desarrollo

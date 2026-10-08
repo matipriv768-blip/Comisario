@@ -18,7 +18,7 @@ A race steward for **Assetto Corsa**: a Custom Shaders Patch Lua app that watche
 - **Flags**: green, yellow, blue, white, chequered and black, plus full course yellow and red called by race control.
 - **Standing or rolling start**: full formation lap or a short one (cars line up near the finish line), with a speed readout against the limit and green lights.
 - **Sessions**: practice only counts, qualifying only invalidates the lap, races penalise.
-- **AI** is watched too and serves penalties on track, if the track allows AI control.
+- **AI** is watched too and serves penalties on track, if the track allows AI control (not yet tested in game, see below).
 - **Online**: each driver is watched by their own app and the apps report to each other. A race director sets the rules and flags for the whole server.
 - **Spanish and English**, chosen in the settings.
 
@@ -41,7 +41,8 @@ Manual install: copy the `apps` folder into the game's `assettocorsa` folder.
 
 ## Project status and known limits
 
-- Tested in game by its author in offline races and on a private server with one or two drivers. Not tested with large grids or on public servers.
+- Tested in game by its author alone, with no AI on track, and on a private server with one or two drivers. Not tested with large grids or on public servers.
+- Everything related to the AI (its penalties, serving them on track, rolling starts against bots) is only verified with the test simulator, not in game. Reports are welcome.
 - Disqualification does not kick anyone from the server and does not change the game's own results table.
 - Everything runs on each driver's PC: the administrator key stops a regular driver, not someone who edits their own copy of the app.
 - Online, every driver needs the app. Drivers without it are not watched.
