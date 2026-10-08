@@ -1705,22 +1705,49 @@ scenario('fila doble con un muro o desnivel al lado: no se pone un auto ahi, una
   return T.cars[0].position.x == 0 and T.cars[1].position.x == 0 and math.abs(T.cars[2].position.z - 2980) < 0.5
 ''')
 
-scenario('fila doble con la linea de la IA cerca de un borde: la pareja se corre un poco, sin pasar el borde ni alejarse de la linea', TWO + '''
+scenario('fila doble con la linea de la IA cerca de un borde: la pareja se corre un poco y la pole va del lado de la linea', TWO + '''
   T.sides = vec2(10, 2.5); T.sim.isSessionStarted = false; T.sim.timeToSessionStart = 15000
   for i = 0, 2 do T.cars[i].splinePosition = 0.98 end
   run(2)
-  local a, b = T.cars[1].position.x, T.cars[0].position.x
-  -- en la pista de prueba el lado +1 es x negativo: la pareja se corre 0,8 m hacia ese lado
-  local far = math.max(math.abs(a), math.abs(b))
-  return math.abs(a - b) > 3.5 and far < 2.8 and far > 2.6
+  -- en la pista de prueba el lado +1 del juego es x negativo; la pareja queda en -1,0 y 2,8 m desde la linea
+  local pole, second = T.cars[1].position.x, T.cars[0].position.x
+  return math.abs(pole - 1.0) < 0.01 and math.abs(second + 2.8) < 0.01 and math.abs(T.cars[2].position.x - pole) < 0.01
 ''')
 
-scenario('fila doble con la linea de la IA pegada a un borde: una sola columna (la IA lejos de su linea no arranca)', TWO + '''
-  T.sides = vec2(10, 1); T.cfg.writeLog = true; T.sim.isSessionStarted = false; T.sim.timeToSessionStart = 15000
+scenario('Spa (linea de la IA a 0,5 m del borde): fila doble con la pole junto a la linea y nadie sobre el borde', TWO + '''
+  T.sides = vec2(12, 0.5); T.sim.isSessionStarted = false; T.sim.timeToSessionStart = 15000
+  for i = 0, 2 do T.cars[i].splinePosition = 0.98 end
+  run(2)
+  return math.abs(T.cars[1].position.x + 1.0) < 0.01 and math.abs(T.cars[0].position.x + 4.8) < 0.01
+''')
+
+scenario('una sola columna con la linea de la IA pegada al borde: los autos se corren hacia adentro', SHORT_AI + '''
+  T.cfg.formTwoWide = false; T.sides = vec2(12, 0.5); T.sim.isSessionStarted = false; T.sim.timeToSessionStart = 15000
+  for i = 0, 2 do T.cars[i].splinePosition = 0.98 end
+  run(2)
+  local ok = true
+  for i = 0, 2 do if math.abs(T.cars[i].position.x + 1.0) > 0.01 then ok = false end end
+  return ok and math.abs(T.cars[0].position.z - 2990) < 0.5
+''')
+
+scenario('fila doble sin espacio cerca de la linea de la IA: una sola columna, corrida hacia adentro', TWO + '''
+  T.sides = vec2(10, 0.05); T.cfg.writeLog = true; T.sim.isSessionStarted = false; T.sim.timeToSessionStart = 15000
   for i = 0, 2 do T.cars[i].splinePosition = 0.98 end
   run(6)
-  return T.cars[0].position.x == 0 and T.cars[1].position.x == 0 and math.abs(T.cars[0].position.z - 2990) < 0.5
-    and logText():find('10.0 m y 1.0 m', 1, true) ~= nil
+  local x = T.cars[0].position.x
+  return math.abs(x + 1.45) < 0.01 and T.cars[1].position.x == x and T.cars[2].position.x == x
+    and math.abs(T.cars[0].position.z - 2990) < 0.5 and logText():find('Fila: espacio', 1, true) ~= nil
+''')
+
+scenario('formacion: un auto de la IA detenido mientras el de delante ya anda activa la vigilancia', TWO + '''
+  T.sim.carsCount = 4
+  newSession(); T.cars[3] = T.newCar(3); T.cars[0].racePosition = 4; T.cars[1].racePosition = 1; T.cars[2].racePosition = 2; T.cars[3].racePosition = 3
+  T.cfg.writeLog = true; T.sim.timeToSessionStart = -100; run(0.5)
+  T.awake = {}
+  for k = 1, 24 do
+    place(1, 3000 + k * 3, 40, 1); place(2, 3000 + k * 3, 40, -3); place(3, 2988, 0, 1); place(0, 2988 + k, 20, -3); run(0.25)
+  end
+  return (T.awake[3] or 0) >= 1 and logText():find('detenido el auto 3', 1, true) ~= nil
 ''')
 
 scenario('fila doble: cada auto movido se despierta en el motor de fisica', TWO + '''

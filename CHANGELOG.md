@@ -1,5 +1,10 @@
 # Cambios
 
+## 1.5.6
+- Salida corta offline: ningún auto parte sobre el piano. Si la línea de la IA va pegada a un borde (en Spa, a 0,5 m), la fila se corre hacia adentro lo justo para que los autos queden en la pista.
+- Fila doble: la pareja puede alejarse hasta 5 m de la línea de la IA (en Spa la IA arrancó a 3 m y no a 8 m). La pole y los impares van del lado más cercano a esa línea, como en una largada real.
+- La vigilancia de la formación revisa todos los autos de la IA, no solo el primero: si uno queda detenido mientras el de delante ya anda, se le despierta y, si sigue igual, se arma una sola fila.
+
 ## 1.5.5
 - Fila doble offline: la pareja de cada fila ahora va pegada a la línea de la IA (1,9 m a cada lado) y no al centro de la pista. En la prueba en Spa los autos que quedaron lejos de esa línea no arrancaban, y los que quedaron cerca sí. Si la línea va pegada a un borde y la pareja no cabe cerca de ella, la fila se arma en una columna desde el principio, sin moverla a mitad de la formación.
 - El registro anota el espacio que hay a cada lado de la línea de la IA donde se arma la fila.
