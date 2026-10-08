@@ -1,5 +1,9 @@
 # Cambios
 
+## 1.5.7
+- Salida corta offline: la fila se arma en un tramo recto. Si donde se eligió partir la pista es curva, el primero parte en el primer tramo recto más atrás (hasta 600 m más). En una curva la línea de la IA pasa por encima del piano y los autos quedaban sobre él (Spa, 500 m antes de la meta).
+- El registro anota a cuántos metros de la meta parte el primero y cuánto dobla la pista en la zona de la fila.
+
 ## 1.5.6
 - Salida corta offline: ningún auto parte sobre el piano. Si la línea de la IA va pegada a un borde (en Spa, a 0,5 m), la fila se corre hacia adentro lo justo para que los autos queden en la pista.
 - Fila doble: la pareja puede alejarse hasta 5 m de la línea de la IA (en Spa la IA arrancó a 3 m y no a 8 m). La pole y los impares van del lado más cercano a esa línea, como en una largada real.

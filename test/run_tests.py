@@ -1750,6 +1750,30 @@ scenario('formacion: un auto de la IA detenido mientras el de delante ya anda ac
   return (T.awake[3] or 0) >= 1 and logText():find('detenido el auto 3', 1, true) ~= nil
 ''')
 
+scenario('la fila se arma en el primer tramo recto: si a 500 m de la meta la pista es curva, el primero parte mas atras', TWO + '''
+  -- curva entre 450 y 650 m antes de la meta (z sigue igual: solo se tuerce hacia un lado)
+  local base = ac.trackProgressToWorldCoordinate
+  ac.trackProgressToWorldCoordinate = function (v)
+    local p = base(v)
+    local m = (1 - v) * 5000
+    local k = math.max(0, math.min(m, 650) - 450)
+    return vec3(p.x + 0.004 * k * k, p.y, p.z)
+  end
+  T.cfg.writeLog = true; T.sim.isSessionStarted = false; T.sim.timeToSessionStart = 15000
+  for i = 0, 2 do T.cars[i].splinePosition = 0.98 end
+  run(6)
+  -- recto desde 690 m: el primero a 700 m (z = 2800), el segundo a su lado y el tercero 12 m detras
+  return math.abs(T.cars[1].position.z - 2800) < 0.5 and math.abs(T.cars[0].position.z - 2800) < 0.5
+    and math.abs(T.cars[2].position.z - 2788) < 0.5 and logText():find('parte a 700 m', 1, true) ~= nil
+''')
+
+scenario('en una recta la fila queda donde se eligio en los ajustes', TWO + '''
+  T.cfg.writeLog = true; T.sim.isSessionStarted = false; T.sim.timeToSessionStart = 15000
+  for i = 0, 2 do T.cars[i].splinePosition = 0.98 end
+  run(6)
+  return math.abs(T.cars[1].position.z - 3000) < 0.5 and logText():find('parte a 500 m', 1, true) ~= nil
+''')
+
 scenario('fila doble: cada auto movido se despierta en el motor de fisica', TWO + '''
   T.sim.isSessionStarted = false; T.sim.timeToSessionStart = 15000
   for i = 0, 2 do T.cars[i].splinePosition = 0.98 end

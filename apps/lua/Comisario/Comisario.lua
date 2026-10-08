@@ -1,6 +1,6 @@
 --[[
   COMISARIO  -  comisario de carrera para Assetto Corsa (app Lua de Custom Shaders Patch)
-  Version 1.5.6  -  offline (contra la IA) y online (con amigos que tengan la app)
+  Version 1.5.7  -  offline (contra la IA) y online (con amigos que tengan la app)
 
   Que hace:
     1. Limites de pista, velocidad en pits y salida en falso.
@@ -22,7 +22,7 @@
   Codigo propio, escrito desde cero. No usa codigo ni archivos de otros plugins.
 ]]
 
-local VERSION = '1.5.6'
+local VERSION = '1.5.7'
 
 -- ---------------------------------------------------------------------------
 -- 1. AJUSTES (se guardan solos entre sesiones)
@@ -1822,7 +1822,41 @@ end
 local function formStartMeters()
   return math.max(cfg.formStartM, cfg.formGreen + 100)
 end
-FORM2.startMeters = formStartMeters
+-- donde parte el primero: lo elegido en los ajustes, o un poco mas atras si ahi la pista es curva (ver pickStart)
+FORM2.startMeters = function () return FORM2.start or formStartMeters() end
+
+-- Busca donde armar la fila offline: el primer tramo recto entre la distancia elegida y 600 m mas atras. En una
+-- curva la linea de la IA corta por el piano y los autos quedaban encima de el (Spa, 500 m antes de la meta).
+function FORM2.pickStart(len, n)
+  FORM2.start = nil
+  local base = formStartMeters()
+  local two = cfg.formTwoWide and not FORM2.single
+  local span = (two and (math.ceil(n / 2) - 1) * FORM2.ROW_GAP or (n - 1) * GRID_GAP) + 40
+  local function heading(m)
+    local sp = 1 - m / len
+    local a = ac.trackProgressToWorldCoordinate(sp)
+    local b = ac.trackProgressToWorldCoordinate(sp + 2 / len)
+    return math.atan2(b.x - a.x, b.z - a.z)
+  end
+  local bestD, bestDev = base, math.huge
+  local ok = pcall(function ()
+    for d = base, base + 600, 20 do
+      if (d + span) / len > 0.9 then break end
+      local h0 = heading(d)
+      local dev = 0
+      for m = d - 40, d + span, 10 do
+        local dh = math.abs(heading(m) - h0)
+        if dh > math.pi then dh = 2 * math.pi - dh end
+        if dh > dev then dev = dh end
+      end
+      if dev < bestDev then bestD, bestDev = d, dev end
+      if dev < math.rad(6) then break end
+    end
+  end)
+  if ok and bestD ~= base then FORM2.start = bestD end
+  addLog(string.format('Fila: el primero parte a %.0f m de la meta (curva en la zona de la fila: %.0f grados)',
+    FORM2.startMeters(), ok and math.deg(bestDev) or -1))
+end
 
 -- Salida lanzada corta: pone un auto en su lugar de la fila. Solo funciona si el juego deja mover autos.
 local function placeInFormation(i, slot, len)
@@ -1939,6 +1973,7 @@ function RS.preStart(sim, car, n)
     S.prePlaced = true
     S.preFixes, S.preFixAt = 0, clock
     FORM2.single, FORM2.logged = nil, nil
+    FORM2.pickStart(len, n)
     local moved = RS.placeAll(n, len, false)
     addLog(string.format('Cuenta regresiva: %d de %d autos llevados a la fila (%s)', moved, n,
       (cfg.formTwoWide and not FORM2.single) and 'dos filas' or 'una fila'))
@@ -2106,7 +2141,10 @@ local function updateRolling(dt, sim, car, n)
     end
     if f.short and not online then
       -- offline la app misma lleva los autos a la fila (online lo hace el script del servidor)
-      if not S.prePlaced then FORM2.single = nil end
+      if not S.prePlaced then
+        FORM2.single = nil
+        FORM2.pickStart(trackLen(sim), n)
+      end
       RS.placeAll(n, trackLen(sim), S.prePlaced)
     end
     if f.short then
@@ -2133,7 +2171,7 @@ local function updateRolling(dt, sim, car, n)
         local early = cfg.formGreen > 0 and sp >= 1 - cfg.formGreen / len
         if f.short then
           -- salida corta: cuenta el auto que ya esta en la fila, antes del punto de la verde
-          if clock - f.startAt > 1.5 and not early and sp < 0.999 and sp > 1 - (formStartMeters() + 400) / len then f.mid[i] = true end
+          if clock - f.startAt > 1.5 and not early and sp < 0.999 and sp > 1 - (FORM2.startMeters() + 400) / len then f.mid[i] = true end
         elseif sp > 0.4 and sp < 0.7 then
           f.mid[i] = true
         end
@@ -3827,7 +3865,8 @@ function W.tabRace(all)
     W.check(tr('Salida corta'), 'formShort',
       tr('Los autos parten en fila cerca del final de la vuelta, sin dar la vuelta de formación completa. Online necesita el script del servidor.'))
     if cfg.formShort or all then
-      W.slider(tr('El primero parte a'), 'formStartM', 200, 2000, tr('%.0f m de la meta'))
+      W.slider(tr('El primero parte a'), 'formStartM', 200, 2000, tr('%.0f m de la meta'),
+        tr('Offline, si ahí la pista es curva, la fila se arma en el primer tramo recto más atrás (hasta 600 m).'))
       W.check(tr('Dos filas'), 'formTwoWide',
         tr('Los autos parten de a dos, uno al lado del otro y en el orden de la grilla. Vale offline; online lo decide el script del servidor (twoWide). La IA tiende a ponerse en una sola fila al avanzar.'))
     end
@@ -4442,6 +4481,7 @@ EN['Salida corta'] = 'Short start'
 EN['Los autos parten en fila cerca del final de la vuelta, sin dar la vuelta de formación completa. Online necesita el script del servidor.'] = 'The cars start in line near the end of the lap, without a full formation lap. Online it needs the server script.'
 EN['El primero parte a'] = 'The leader starts'
 EN['Dos filas'] = 'Two rows'
+EN['Offline, si ahí la pista es curva, la fila se arma en el primer tramo recto más atrás (hasta 600 m).'] = 'Offline, if the track curves there, the grid is set up on the first straight further back (up to 600 m).'
 EN['La IA no arrancó en dos filas: se larga en una sola fila'] = 'The AI did not pull away two by two: starting in a single line'
 EN['Los autos parten de a dos, uno al lado del otro y en el orden de la grilla. Vale offline; online lo decide el script del servidor (twoWide). La IA tiende a ponerse en una sola fila al avanzar.'] = 'Cars start two by two, side by side and in grid order. Applies offline; online the server script decides (twoWide). The AI tends to fall into a single line once moving.'
 EN['%.0f m de la meta'] = '%.0f m from the line'
