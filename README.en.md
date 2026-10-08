@@ -154,6 +154,7 @@ From then on, the rules, start type and flags you choose in your app apply to ev
 | `adminPass = 'yourkey'` | Administrator key. Without this line there is no administrator and each driver uses their own rules. |
 | `requireApp = 1` | Drivers without the app cannot go over 60 km/h. Delete it to not require the app. |
 | `language = 'en'` | The server's messages are shown in English. Delete it for Spanish. |
+| `twoWide = 0` | Optional: short start in a single line. Without it, cars start two by two (1 and 2 side by side). |
 | `lockStart = 1` | Optional: the start type is set by the server and cannot be changed from the app. |
 
 ### Updating the server script

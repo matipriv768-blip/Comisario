@@ -1,5 +1,5 @@
 --[[
-  COMISARIO SERVIDOR 1.10  -  script online para Assetto Corsa (Custom Shaders Patch)
+  COMISARIO SERVIDOR 1.11  -  script online para Assetto Corsa (Custom Shaders Patch)
 
   El servidor le envia este archivo a cada piloto al conectarse. No hay que instalarlo.
   Impone la salida lanzada a todos, tengan o no la app Comisario:
@@ -48,12 +48,13 @@
     adminPass = ''           ; clave de administrador (vacia = sin administrador: manda quien se marque director)
     requireApp = 0           ; 1 = sin la app Comisario activa, el auto no pasa de 60 km/h
     language = 'es'          ; idioma de los mensajes de este script: 'es' = espanol, 'en' = ingles
+    twoWide = 1              ; salida corta en dos filas (1 y 2 lado a lado, 3 y 4 detras...); 0 = una sola fila
 
   Codigo propio, escrito desde cero.
 ]]
 
 local settings = ac.configValues({ rollingStart = 1, lockStart = 0, formationSpeed = 100, greenMeters = 100, startMeters = 0,
-  adminPass = '', requireApp = 0, language = 'es' })
+  adminPass = '', requireApp = 0, language = 'es', twoWide = 1 })
 local baseRolling = (tonumber(settings.rollingStart) or 1) ~= 0
 local lockStart = (tonumber(settings.lockStart) or 0) ~= 0
 local rolling = baseRolling
@@ -65,6 +66,8 @@ local requireApp = (tonumber(settings.requireApp) or 0) ~= 0
 local baseStart = math.max(0, math.min(3000, tonumber(settings.startMeters) or 0))
 local startMeters = baseStart
 local GRID_GAP = 10      -- metros entre un auto y el siguiente en la fila de la salida corta
+-- fila doble: los autos van de a dos, lado a lado; ROW_GAP entre una fila y la siguiente, LANE desde el centro de la pista
+local FORM2 = { on = (tonumber(settings.twoWide) or 1) ~= 0, ROW_GAP = 12, LANE = 2.6, noSides = false }
 local NO_APP_SPEED = 60
 
 -- Huella numerica de la clave de administrador (la misma cuenta que hace la app). 0 = sin administrador.
@@ -204,14 +207,20 @@ local function formationSpot(car, len)
     local c = ac.getCar(i)
     if c and c.isConnected ~= false and (c.racePosition or 999) < (car.racePosition or 1) then slot = slot + 1 end
   end
-  local meters = math.max(startMeters, greenMeters + 100) + (slot - 1) * GRID_GAP
+  local first = math.max(startMeters, greenMeters + 100)
+  local meters, side = first + (slot - 1) * GRID_GAP, 0
+  if FORM2.on then
+    meters, side = first + (math.ceil(slot / 2) - 1) * FORM2.ROW_GAP, (slot % 2 == 1) and 1 or -1
+    -- sin el ancho de la pista, el segundo de cada fila va 6 m detras del primero en vez de al lado
+    if FORM2.noSides and side < 0 then meters = meters + 6 end
+  end
   local sp = 1 - meters / len
   if sp < 0.05 then return nil end
-  return sp
+  return sp, side
 end
 
 local function toFormation(car, len)
-  local sp = formationSpot(car, len)
+  local sp, side = formationSpot(car, len)
   if not sp then return nil end
   local ok = pcall(function ()
     local a = ac.trackProgressToWorldCoordinate(sp)
@@ -219,8 +228,25 @@ local function toFormation(car, len)
     local dx, dy, dz = b.x - a.x, b.y - a.y, b.z - a.z
     local d = math.sqrt(dx * dx + dy * dy + dz * dz)
     if d < 0.001 then error('sin direccion') end
+    local px, py, pz = a.x, a.y, a.z
+    if side ~= 0 then
+      -- fila doble: el auto se corre hacia un lado del centro de la pista (el ancho lo da el juego)
+      local okW, w = pcall(ac.getTrackAISplineSides, sp)
+      local lx, lz = -dz / d, dx / d
+      local ll = math.sqrt(lx * lx + lz * lz)
+      if okW and w and (w.x + w.y) > 6 and ll > 0.001 then
+        local off = (w.x - w.y) / 2 + side * math.min(FORM2.LANE, (w.x + w.y) / 2 - 1.5)
+        px, pz = px + lx / ll * off, pz + lz / ll * off
+      elseif not FORM2.noSides then
+        -- el juego no informa el ancho: desde ahora el segundo de cada fila va detras
+        FORM2.noSides = true
+        sp, side = formationSpot(car, len)
+        a = ac.trackProgressToWorldCoordinate(sp)
+        px, py, pz = a.x, a.y, a.z
+      end
+    end
     -- el juego espera la direccion al reves: hacia donde apunta la cola del auto
-    physics.setCarPosition(0, vec3(a.x, a.y + 0.2, a.z), vec3(-dx / d, -dy / d, -dz / d))
+    physics.setCarPosition(0, vec3(px, py + 0.2, pz), vec3(-dx / d, -dy / d, -dz / d))
   end)
   return ok and sp or nil
 end
@@ -239,7 +265,7 @@ local function releasePre()
   end
 end
 
-local SCRIPT_VERSION = '1.10'
+local SCRIPT_VERSION = '1.11'
 local versionShown = false
 
 function script.update(dt)

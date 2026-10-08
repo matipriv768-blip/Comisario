@@ -1,5 +1,11 @@
 # Cambios
 
+## 1.5.3
+- Salida lanzada corta en dos filas: 1 y 2 lado a lado, 3 y 4 en la fila siguiente, respetando el orden de la grilla. Offline se elige en la app (Largada > Dos filas); online lo hace el script del servidor 1.11 (opción `twoWide`, activada por defecto). La IA tiende a ponerse en una sola fila al avanzar.
+- Corregido: con la bandera verde la IA que larga delante del jugador seguía limitada y lo obligaba a pasarla antes de la meta. Ahora queda libre con la verde; la de atrás sigue sin poder pasar al de delante hasta la meta.
+- En la fila doble, quedar unos metros detrás del que larga al lado no cuenta como adelantamiento.
+- Script del servidor 1.11: fila doble.
+
 ## 1.5.2
 - Corregido: offline, con la bandera verde la IA de delante seguía limitada hasta cruzar la meta, y al acelerar quedabas obligado a pasarla (y a devolver el puesto). Ahora con la verde todos aceleran; cada auto de la IA sigue sin poder pasar al de delante hasta la meta, y el primero de la fila queda libre de inmediato.
 - El registro anota si el juego deja mover los autos a la fila durante la cuenta regresiva. Si no lo deja, se espera a las luces sin dejar los controles bloqueados.

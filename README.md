@@ -153,6 +153,7 @@ Desde ahí, el reglamento, el tipo de salida y las banderas que elijas en tu app
 | `adminPass = 'tuclave'` | Clave de administrador. Si borras la línea, no hay administrador y cada piloto usa sus propias reglas. |
 | `requireApp = 1` | Quien entre sin la app no pasa de 60 km/h. Bórrala si no quieres exigirla. |
 | `language = 'en'` | Opcional: los mensajes del servidor salen en inglés. |
+| `twoWide = 0` | Opcional: la salida corta en una sola fila. Sin la línea, va en dos filas (1 y 2 lado a lado). |
 | `lockStart = 1` | Opcional: el tipo de salida lo fija el servidor y no se puede cambiar desde la app. |
 
 ### Actualizar el script del servidor

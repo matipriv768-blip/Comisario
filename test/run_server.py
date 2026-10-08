@@ -225,7 +225,7 @@ scenario('salida corta desde el servidor: al largar, el auto va a su lugar en la
   local n = #T.forcedCuts
   place(0, 3300, 200); run(1)
   return moved and noGreen and capped and lastMsg():find('BANDERA VERDE') ~= nil and #T.forcedCuts == n and T.cars[1].lapCount == 0
-""", pre='SCRIPT_CFG = { rollingStart = 1, formationSpeed = 100, greenMeters = 100, startMeters = 500 }')
+""", pre='SCRIPT_CFG = { rollingStart = 1, formationSpeed = 100, greenMeters = 100, startMeters = 500, twoWide = 0 }')
 
 scenario('salida corta: la distancia la fija la app; con 0 en la app se hace la vuelta completa aunque el servidor diga otra cosa', """
   LINK.appStart = 800; LINK.appMode = 2
@@ -235,7 +235,7 @@ scenario('salida corta: la distancia la fija la app; con 0 en la app se hace la 
   T.sim.isSessionStarted = false; LINK.appStart = 0; run(0.5, %s); T.sim.isSessionStarted = true
   run(0.5, %s)
   return far and #T.teleports == 1 and msgCount('VUELTA DE FORMACION') == 1
-""" % (TICK, TICK, TICK, TICK), pre='SCRIPT_CFG = { rollingStart = 1, formationSpeed = 100, startMeters = 500 }')
+""" % (TICK, TICK, TICK, TICK), pre='SCRIPT_CFG = { rollingStart = 1, formationSpeed = 100, startMeters = 500, twoWide = 0 }')
 
 scenario('sin startMeters ni app, la salida lanzada sigue siendo de vuelta completa y nadie es movido', """
   place(0, 0, 90); run(2)
@@ -259,7 +259,8 @@ scenario('descalificado por la app: el script lo manda a pits, y de nuevo si vue
   return none and sent and stays and again and T.noInput == false
 """ % (TICK, TICK, TICK, TICK, TICK))
 
-SHORT = 'SCRIPT_CFG = { rollingStart = 1, formationSpeed = 100, greenMeters = 100, startMeters = 500 }'
+SHORT = 'SCRIPT_CFG = { rollingStart = 1, formationSpeed = 100, greenMeters = 100, startMeters = 500, twoWide = 0 }'
+SHORT2 = 'SCRIPT_CFG = { rollingStart = 1, formationSpeed = 100, greenMeters = 100, startMeters = 500 }'
 
 scenario('salida corta: despues de la bandera verde nadie vuelve a ser llevado a la fila, aunque el contador de vueltas siga en 0', """
   T.sim.carsCount = 1; T.cars[0].racePosition = 14
@@ -360,7 +361,7 @@ scenario('carrera reiniciada: en la nueva cuenta regresiva el auto vuelve a ir a
 scenario('al cargar, el script avisa una sola vez que version es', """
   T.sim.raceSessionType = ac.SessionType.Practice
   place(0, 0, 50); run(8)
-  local shown = #T.versionMsgs == 1 and T.versionMsgs[1]:find('COMISARIO SERVIDOR 1.10', 1, true) ~= nil
+  local shown = #T.versionMsgs == 1 and T.versionMsgs[1]:find('COMISARIO SERVIDOR 1.11', 1, true) ~= nil
   T.sim.raceSessionType = ac.SessionType.Race; run(8)
   return shown and #T.versionMsgs == 1
 """)
@@ -383,8 +384,25 @@ scenario("language = 'en': los mensajes del script salen en ingles", """
 scenario("language = 'en': el aviso de version tambien", """
   T.sim.raceSessionType = ac.SessionType.Practice
   place(0, 0, 50); run(8)
-  return #T.versionMsgs == 1 and T.versionMsgs[1] == 'COMISARIO SERVER 1.10 | Server script loaded'
+  return #T.versionMsgs == 1 and T.versionMsgs[1] == 'COMISARIO SERVER 1.11 | Server script loaded'
 """, pre="SCRIPT_CFG = { language = 'EN' }")
+
+scenario('fila doble (por defecto): el 1 y el 2 lado a lado, el 3 en la fila siguiente', """
+  T.sim.carsCount = 3; T.cars[0].racePosition = 2; T.cars[1].racePosition = 1; T.cars[2].racePosition = 3
+  T.sim.isSessionStarted = false; place(0, 3440, 0); run(3)
+  local second = #T.teleports == 1 and math.abs(T.teleports[1].z - 3000) < 0.5 and math.abs(T.cars[0].position.x - 2.6) < 0.01
+  T.cars[0].racePosition = 3; T.cars[2].racePosition = 2
+  T.sim.isSessionStarted = true; run(0.5); T.sim.isSessionStarted = false; place(0, 3440, 0); run(3)
+  local third = math.abs(last(T.teleports).z - 2988) < 0.5 and math.abs(T.cars[0].position.x + 2.6) < 0.01
+  return second and third
+""", pre=SHORT2)
+
+scenario('fila doble sin el ancho de la pista: el segundo de la fila va 6 m detras, en la linea', """
+  T.noSides = true
+  T.sim.carsCount = 2; T.cars[0].racePosition = 2; T.cars[1].racePosition = 1
+  T.sim.isSessionStarted = false; place(0, 3440, 0); run(8)
+  return #T.teleports == 1 and math.abs(T.teleports[1].z - 2994) < 0.5 and T.cars[0].position.x == 0
+""", pre=SHORT2)
 
 fails = 0
 for name, ok, err in results:

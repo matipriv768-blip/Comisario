@@ -50,6 +50,7 @@ local function newCar(i)
   }
 end
 T.cars = { [0] = newCar(0), [1] = newCar(1), [2] = newCar(2) }
+T.newCar = newCar             -- las pruebas pueden agregar mas autos
 T.cars[1].position = vec3(0, 0, 300); T.cars[2].position = vec3(0, 0, 600)
 T.sim = {
   raceSessionType = 3, isSessionStarted = true, timeToSessionStart = -1000,
@@ -74,7 +75,7 @@ ac = {
     if t.rulesVersion ~= nil and not FRESH_INSTALL then
       for k, v in pairs({ tlMinTime = 0.4, tlMinSpeed = 50, tlPenalty = 2, tlMode = 1, tlReset = false, pitLimit = 80,
         pitTolerance = 3, tiers = false, gbPenalty = 3, ctHeavyPenalty = 3, incStep = 12, dtFailSec = 30, dtFailDQ = false,
-        endLaps = 0, formShort = false, hudBg = true, hudFixed = false, uiVersion = 99 }) do t[k] = v end
+        endLaps = 0, formShort = false, hudBg = true, hudFixed = false, uiVersion = 99, formTwoWide = false }) do t[k] = v end
     end
     -- ajustes que el piloto ya tenia guardados antes de actualizar
     if STORED then for k, v in pairs(STORED) do t[k] = v end end
@@ -112,6 +113,11 @@ T.pitTeleports = {}         -- autos enviados a pits
 ac.SpawnSet = { Start = 'START', Pits = 'PIT' }
 -- la pista de prueba es una recta de 5000 m: la posicion 0,3 de la pista esta en z = 0 (igual que place)
 ac.trackProgressToWorldCoordinate = function (v) return vec3(0, 0, (v - 0.3) * 5000) end
+-- ancho de la pista a cada lado de la linea de la IA: 6 m y 6 m (T.noSides simula un juego que no lo informa)
+ac.getTrackAISplineSides = function (v)
+  if T.noSides then error('sin datos') end
+  return vec2(6, 6)
+end
 physics = {
   setCarPosition = function (i, pos, dir)
     if T.teleportFail then error('no permitido') end

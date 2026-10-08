@@ -1,6 +1,6 @@
 --[[
   COMISARIO  -  comisario de carrera para Assetto Corsa (app Lua de Custom Shaders Patch)
-  Version 1.5.2  -  offline (contra la IA) y online (con amigos que tengan la app)
+  Version 1.5.3  -  offline (contra la IA) y online (con amigos que tengan la app)
 
   Que hace:
     1. Limites de pista, velocidad en pits y salida en falso.
@@ -22,7 +22,7 @@
   Codigo propio, escrito desde cero. No usa codigo ni archivos de otros plugins.
 ]]
 
-local VERSION = '1.5.2'
+local VERSION = '1.5.3'
 
 -- ---------------------------------------------------------------------------
 -- 1. AJUSTES (se guardan solos entre sesiones)
@@ -67,6 +67,7 @@ local DEFAULTS = {
   formGreen = 100,         -- la bandera verde sale cuando al lider le faltan estos metros para la meta (0 = en la meta)
   formShort = true,        -- salida lanzada corta: los autos parten en fila cerca del final de la vuelta, sin dar la vuelta completa
   formStartM = 500,        -- salida corta: metros antes de la meta donde parte el primero
+  formTwoWide = true,      -- salida corta offline: dos filas (1 y 2 lado a lado, 3 y 4 detras...); sin marcar, una sola fila
   gbEnabled = true,        -- pedir que se devuelva la posicion antes de sancionar
   gbSec = 20,              -- segundos para devolverla
   gbPenalty = 1,           -- sancion si no se devuelve
@@ -1754,6 +1755,23 @@ end
 -- ---------------------------------------------------------------------------
 
 local GRID_GAP = 10   -- metros entre un auto y el siguiente en la fila de la salida corta
+-- Fila doble: los autos van de a dos, uno al lado del otro. ROW_GAP es la distancia entre una fila y la siguiente
+-- y LANE la distancia de cada auto al centro de la pista.
+local FORM2 = { ROW_GAP = 12, LANE = 2.6 }
+
+-- Lugar "slot" de la largada: metros antes de la meta y lado (1 o -1; 0 = al centro, una sola fila)
+function FORM2.spot(slot, twoWide)
+  slot = math.max(1, slot or 1)
+  if twoWide then
+    return FORM2.startMeters() + (math.ceil(slot / 2) - 1) * FORM2.ROW_GAP, (slot % 2 == 1) and 1 or -1
+  end
+  return FORM2.startMeters() + (slot - 1) * GRID_GAP, 0
+end
+
+-- en una fila doble, dos lugares de la misma fila van lado a lado
+function FORM2.sameRow(a, b)
+  return cfg.formTwoWide and math.ceil(a / 2) == math.ceil(b / 2)
+end
 
 local function trackLen(sim)
   return (sim.trackLengthM and sim.trackLengthM > 100) and sim.trackLengthM or 4000
@@ -1763,10 +1781,12 @@ end
 local function formStartMeters()
   return math.max(cfg.formStartM, cfg.formGreen + 100)
 end
+FORM2.startMeters = formStartMeters
 
 -- Salida lanzada corta: pone un auto en su lugar de la fila. Solo funciona si el juego deja mover autos.
 local function placeInFormation(i, slot, len)
-  local sp = 1 - (formStartMeters() + (math.max(1, slot or 1) - 1) * GRID_GAP) / len
+  local meters, side = FORM2.spot(slot, cfg.formTwoWide)
+  local sp = 1 - meters / len
   if sp < 0.05 then return false end
   return pcall(function ()
     if not physics.allowed() then error('sin permiso') end
@@ -1775,8 +1795,23 @@ local function placeInFormation(i, slot, len)
     local dx, dy, dz = b.x - a.x, b.y - a.y, b.z - a.z
     local dd = vlen(dx, dy, dz)
     if dd < 0.001 then error('sin direccion') end
+    local px, py, pz = a.x, a.y, a.z
+    if side ~= 0 then
+      -- fila doble: se corre el auto hacia un lado del centro de la pista (el ancho lo da el juego)
+      local ok, w = pcall(ac.getTrackAISplineSides, sp)
+      local lx, lz = -dz / dd, dx / dd
+      local ll = math.sqrt(lx * lx + lz * lz)
+      if ok and w and (w.x + w.y) > 6 and ll > 0.001 then
+        local off = (w.x - w.y) / 2 + side * math.min(FORM2.LANE, (w.x + w.y) / 2 - 1.5)
+        px, pz = px + lx / ll * off, pz + lz / ll * off
+      elseif side < 0 then
+        -- sin el ancho de la pista no se arriesga a sacarlo de ella: el segundo de la fila va 6 m detras
+        local back = ac.trackProgressToWorldCoordinate(sp - 6 / len)
+        px, py, pz = back.x, back.y, back.z
+      end
+    end
     -- el juego espera la direccion al reves: hacia donde apunta la cola del auto
-    physics.setCarPosition(i, vec3(a.x, a.y + 0.2, a.z), vec3(-dx / dd, -dy / dd, -dz / dd))
+    physics.setCarPosition(i, vec3(px, py + 0.2, pz), vec3(-dx / dd, -dy / dd, -dz / dd))
   end)
 end
 
@@ -1785,7 +1820,8 @@ local RS = {}
 
 -- posicion en la pista (0 a 1) del lugar "slot" de la fila
 function RS.slotSpline(slot, len)
-  return 1 - (formStartMeters() + (math.max(1, slot or 1) - 1) * GRID_GAP) / len
+  local meters = FORM2.spot(slot, cfg.formTwoWide)
+  return 1 - meters / len
 end
 
 -- Avance de cada auto en vueltas, medido por la app. No usa el contador de vueltas del juego, que despues de
@@ -1876,6 +1912,8 @@ function RS.aiFollow(dt, f, n)
   f.capT = 0
   f.cap, f.freed, f.prevSp, f.crossed = f.cap or {}, f.freed or {}, f.prevSp or {}, f.crossed or {}
   local pending = 0
+  local two = f.short and cfg.formTwoWide
+  local mySlot = f.grid or 1
   for p, i in ipairs(f.order) do
     local c = i ~= 0 and not f.freed[i] and ac.getCar(i) or nil
     if c then
@@ -1886,9 +1924,14 @@ function RS.aiFollow(dt, f, n)
       if c.lapCount > (f.lap0[i] or 0) then f.crossed[i] = true end
       f.prevSp[i] = c.splinePosition
       local free = false
-      local a = f.order[p - 1] and ac.getCar(f.order[p - 1]) or nil
+      -- auto de referencia: el de delante en la misma columna, a "want" metros (el segundo de la fila doble va al lado del primero)
+      local ref, want = f.order[p - 1], 14
+      if two then ref, want = (p > 2) and f.order[p - 2] or (p == 2 and f.order[1] or nil), (p > 2) and FORM2.ROW_GAP + 2 or 0 end
+      local a = ref and ac.getCar(ref) or nil
       if f.phase ~= 'formation' then
-        if f.crossed[i] or not a then free = true end
+        -- con la verde la IA que larga delante tuyo queda libre: si siguiera limitada, te obligaria a pasarla.
+        -- La de atras sigue sin poder pasar al de delante hasta cruzar la meta.
+        if f.crossed[i] or not a or p < mySlot then free = true end
         if f.greenAt and clock - f.greenAt > 40 then free = true end
       end
       if free then
@@ -1901,10 +1944,11 @@ function RS.aiFollow(dt, f, n)
         local cap = top
         if a and not a.isInPitlane then
           local gap = metersAhead(a, c)
-          if gap < 0 and gap > -60 then
+          local slack = want == 0 and 4 or 0        -- lado a lado se acepta quedar unos metros por delante
+          if gap < -slack and gap > -60 then
             cap = 30                -- se adelanto: frena hasta que el otro vuelva a quedar delante
-          elseif gap >= 0 and gap < 40 then
-            cap = math.max(15, math.min(top, a.speedKmh + (gap - 14) * 1.5))
+          elseif gap >= -slack and gap < 40 then
+            cap = math.max(15, math.min(top, a.speedKmh + (gap - want) * 1.5))
           end
         end
         if not f.cap[i] or math.abs(f.cap[i] - cap) > 1 then
@@ -2040,7 +2084,9 @@ local function updateRolling(dt, sim, car, n)
   if not S.giveback then
     for _, j in ipairs(f.ahead) do
       local c = ac.getCar(j)
-      if c and c.speedKmh > 30 and not c.isInPitlane and metersAhead(c, car) < -3 then
+      -- en la fila doble, el que larga a tu lado puede quedar unos metros detras sin que sea adelantamiento
+      local tol = (f.short and FORM2.sameRow(startSlot(j, n), f.grid or 1)) and 8 or 3
+      if c and c.speedKmh > 30 and not c.isInPitlane and metersAhead(c, car) < -tol then
         f.passT[j] = (f.passT[j] or 0) + dt
         if f.passT[j] > 1.5 then
           f.passT[j] = 0
@@ -3680,6 +3726,8 @@ function W.tabRace(all)
       tr('Los autos parten en fila cerca del final de la vuelta, sin dar la vuelta de formación completa. Online necesita el script del servidor.'))
     if cfg.formShort or all then
       W.slider(tr('El primero parte a'), 'formStartM', 200, 2000, tr('%.0f m de la meta'))
+      W.check(tr('Dos filas'), 'formTwoWide',
+        tr('Los autos parten de a dos, uno al lado del otro y en el orden de la grilla. Vale offline; online lo decide el script del servidor (twoWide). La IA tiende a ponerse en una sola fila al avanzar.'))
     end
     if all then
       W.slider(tr('Bandera verde'), 'formGreen', 0, 250, tr('%.0f m antes de la meta'),
@@ -4291,6 +4339,8 @@ EN['Velocidad máxima antes de la verde'] = 'Top speed before the green'
 EN['Salida corta'] = 'Short start'
 EN['Los autos parten en fila cerca del final de la vuelta, sin dar la vuelta de formación completa. Online necesita el script del servidor.'] = 'The cars start in line near the end of the lap, without a full formation lap. Online it needs the server script.'
 EN['El primero parte a'] = 'The leader starts'
+EN['Dos filas'] = 'Two rows'
+EN['Los autos parten de a dos, uno al lado del otro y en el orden de la grilla. Vale offline; online lo decide el script del servidor (twoWide). La IA tiende a ponerse en una sola fila al avanzar.'] = 'Cars start two by two, side by side and in grid order. Applies offline; online the server script decides (twoWide). The AI tends to fall into a single line once moving.'
 EN['%.0f m de la meta'] = '%.0f m from the line'
 EN['Bandera verde'] = 'Green flag'
 EN['%.0f m antes de la meta'] = '%.0f m before the line'

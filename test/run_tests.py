@@ -1658,6 +1658,68 @@ scenario('carrera reiniciada desde el menu: se borran sanciones y contadores aun
   return had and hudScreen():find('INC 0x') ~= nil
 ''')
 
+
+# ---------------------------------------------------------------- 1.5.3: fila doble
+TWO = '''
+  T.cfg.startMode = 2; T.cfg.formShort = true; T.cfg.formTwoWide = true; T.physicsAllowed = true; T.sim.carsCount = 3
+  T.cars[0].racePosition = 2; T.cars[1].racePosition = 1; T.cars[2].racePosition = 3
+  newSession(); T.cars[0].racePosition = 2; T.cars[1].racePosition = 1; T.cars[2].racePosition = 3
+'''
+
+scenario('fila doble: 1 y 2 lado a lado a 500 m de la meta, el 3 en la fila siguiente, todos mirando hacia adelante', TWO + '''
+  T.sim.timeToSessionStart = -100
+  for i = 0, 2 do T.cars[i].splinePosition = 0.98 end
+  run(0.5)
+  local p = {}
+  local facing = true
+  for _, t in ipairs(T.teleports) do
+    p[t.i] = T.cars[t.i].position
+    if math.abs(t.dir.z + 1) > 0.001 then facing = false end
+  end
+  return facing and #T.teleports == 3
+    and math.abs(p[1].z - 3000) < 0.5 and math.abs(p[0].z - 3000) < 0.5 and math.abs(p[2].z - 2988) < 0.5
+    and math.abs(p[1].x - p[0].x) > 4.5 and math.abs(p[1].x - p[2].x) < 0.5 and math.abs(p[1].x) < 3 and math.abs(p[0].x) < 3
+''')
+
+scenario('fila doble sin el ancho de la pista: el segundo de cada fila va 6 m detras, sin salirse de la linea', TWO + '''
+  T.noSides = true; T.sim.timeToSessionStart = -100
+  for i = 0, 2 do T.cars[i].splinePosition = 0.98 end
+  run(0.5)
+  local p = {}
+  for _, t in ipairs(T.teleports) do p[t.i] = T.cars[t.i].position end
+  return #T.teleports == 3 and math.abs(p[1].z - 3000) < 0.5 and math.abs(p[0].z - 2994) < 0.5 and math.abs(p[2].z - 2988) < 0.5
+    and p[0].x == 0 and p[1].x == 0 and not logText():find('ERROR')
+''')
+
+scenario('fila doble: quedar unos metros detras del que larga a tu lado no es adelantamiento', TWO + '''
+  T.sim.timeToSessionStart = -100; run(0.5)
+  place(1, 3200, 60, -2.6); place(0, 3205, 60, 2.6); place(2, 3188, 60, -2.6); run(5)
+  return msgCount('DEVUELVE') == 0
+''')
+
+scenario('fila doble: la IA de al lado se mantiene a tu altura y la de atras sigue a la de su columna', TWO + '''
+  T.sim.carsCount = 4
+  newSession(); T.cars[3] = T.newCar(3); T.cars[0].racePosition = 1; T.cars[1].racePosition = 2; T.cars[2].racePosition = 3; T.cars[3].racePosition = 4
+  T.sim.timeToSessionStart = -100; run(0.5)
+  -- fila: 0 (tu) y 1 a tu lado; 2 detras de ti y 3 detras de 1. Vas a 50
+  place(0, 3200, 50, -2.6); place(1, 3200, 100, 2.6); place(2, 3188, 100, -2.6); place(3, 3170, 100, 2.6); run(1)
+  local beside = last(T.aiCaps[1]) <= 51 and last(T.aiCaps[1]) >= 45
+  local behind = last(T.aiCaps[2]) < 50
+  local column = last(T.aiCaps[3]) > 60                    -- 30 m detras de su auto de referencia: puede acercarse
+  return beside and behind and column
+''')
+
+scenario('con la verde, la IA que larga delante de ti queda libre y la de atras no puede pasarte hasta la meta', TWO + '''
+  T.cars[0].racePosition = 3; T.cars[1].racePosition = 1; T.cars[2].racePosition = 2
+  T.sim.carsCount = 4
+  newSession(); T.cars[3] = T.newCar(3); T.cars[0].racePosition = 3; T.cars[1].racePosition = 1; T.cars[2].racePosition = 2; T.cars[3].racePosition = 4
+  T.sim.timeToSessionStart = -100; run(0.5)
+  place(1, 3300, 100, -2.6); place(2, 3300, 100, 2.6); place(0, 3288, 100, -2.6); place(3, 3288, 100, 2.6); run(2)
+  place(1, 3420, 100, -2.6); place(2, 3420, 100, 2.6); place(0, 3408, 100, -2.6); place(3, 3408, 100, 2.6); run(0.5)
+  local green = lastMsg():find('BANDERA VERDE') ~= nil
+  return green and last(T.aiCaps[1]) == math.huge and last(T.aiCaps[2]) == math.huge and last(T.aiCaps[3]) ~= math.huge
+''')
+
 fails = 0
 for name, ok, err in results:
     print(('OK    ' if ok else 'FALLA ') + name + (('\n        -> ' + err) if err else ''))
