@@ -1,5 +1,12 @@
 # Cambios
 
+## 1.5.1
+- Offline, salida corta: los autos van a la fila durante la cuenta regresiva, igual que online. Antes aparecían en la grilla y saltaban a la fila al apagarse las luces.
+- Offline, formación: cada auto de la IA anda al ritmo del que tiene delante, así nadie adelanta antes de la largada. Si alguno se adelanta, frena hasta que el otro vuelva a quedar delante.
+- Después de la bandera verde, cada auto de la IA queda libre recién al cruzar la meta (antes se soltaban todos a la vez, antes de la meta).
+- Corregido: después de una salida corta saltaba la bandera azul al cruzar la meta. La azul ahora usa el avance medido por la app y no el contador de vueltas del juego.
+- Corregido: al reiniciar la carrera desde el menú quedaban sanciones, puntos y banderas de la carrera anterior.
+
 ## 1.5.0
 - Idioma: la app completa se puede usar en español o en inglés (ajustes, avisos, panel e indicadores). Se elige arriba de los ajustes.
 - Ajustes nuevos: nombre corto a la izquierda y control a la derecha, explicación al pasar el mouse, lista desplegable para el tipo de sanción y resumen del reglamento en uso. Se muestran solo las opciones principales; "Mostrar todas las opciones" agrega el resto.

@@ -1097,11 +1097,12 @@ scenario('salida lanzada contra la IA: formacion con limite de velocidad y bande
   run(20)
   local quiet = #T.messages == 1
   T.cars[1].lapCount = 1; run(0.5)
+  -- a la verde queda libre solo el que ya cruzo la meta; el de atras sigue limitado hasta cruzarla
   local green = lastMsg():find('BANDERA VERDE | Carrera lanzada. Puedes adelantar despues de cruzar la meta') ~= nil
-    and last(T.aiCaps[1]) == math.huge and last(T.aiCaps[2]) == math.huge
+    and last(T.aiCaps[1]) == math.huge and last(T.aiCaps[2]) ~= math.huge
   local bar2 = hudScreen():find('VERDE | ADELANTA DESPUES DE LA META') ~= nil
-  T.cars[0].lapCount = 1; run(8)                       -- cruzas la meta: ya es carrera normal
-  return formation and bar and quiet and green and bar2 and hudScreen():find('VERDE') == nil
+  T.cars[0].lapCount = 1; T.cars[2].lapCount = 1; run(8)   -- cruzan la meta: ya es carrera normal
+  return formation and bar and quiet and green and bar2 and hudScreen():find('VERDE') == nil and last(T.aiCaps[2]) == math.huge
 ''')
 
 scenario('salida lanzada: correr en la formacion es sancion', '''
@@ -1207,7 +1208,10 @@ scenario('con "prohibido adelantar" apagado, o en practica, adelantar con amaril
 scenario('azul en carrera: solo si el de atras te saca una vuelta', FL + '''
   place(0, 0, 150); place(1, -20, 160); run(1)
   local same = #T.messages == 0
-  T.cars[1].lapCount = 1; run(0.5)
+  -- el de atras da una vuelta completa mas que tu y vuelve a quedar justo detras
+  local o = T.cars[1]
+  for k = 1, 200 do o.splinePosition = (o.splinePosition + 0.005) % 1; run(1 / 60) end
+  o.lapCount = 1; run(0.5)
   return same and lastMsg():find('BANDERA AZUL | Deja pasar a Piloto1, te saca una vuelta') ~= nil
     and hudScreen():find('AZUL') ~= nil and msgCount('BANDERA AZUL') == 1
 ''')
@@ -1559,6 +1563,87 @@ scenario('ajustes: el resumen del reglamento se arma con los valores en uso', ''
     and t:find('Limites de pista: 2 avisos y despues drive-through', 1, true) ~= nil and t:find('Pits: limite de 60 km/h', 1, true) ~= nil
     and t:find('Mas de 9 puntos de incidente: descalificacion', 1, true) ~= nil
     and t:find('No cumplir un drive-through en 2 vueltas: descalificacion', 1, true) ~= nil
+''')
+
+
+# ---------------------------------------------------------------- 1.5.1: salida lanzada offline con IA
+SHORT_AI = '''
+  T.cfg.startMode = 2; T.cfg.formShort = true; T.physicsAllowed = true; T.sim.carsCount = 3
+  T.cars[0].racePosition = 2; T.cars[1].racePosition = 1; T.cars[2].racePosition = 3
+  newSession(); T.cars[0].racePosition = 2; T.cars[1].racePosition = 1; T.cars[2].racePosition = 3
+'''
+
+scenario('offline, salida corta: los autos van a la fila durante la cuenta regresiva y el jugador espera sin controles', SHORT_AI + '''
+  T.sim.isSessionStarted = false; T.sim.timeToSessionStart = 15000
+  for i = 0, 2 do T.cars[i].splinePosition = 0.98 end
+  run(1)
+  local waits = #T.teleports == 0
+  run(1)
+  local z = {}
+  for _, t in ipairs(T.teleports) do z[t.i] = t.z end
+  local placed = #T.teleports == 3 and math.abs(z[1] - 3000) < 1 and math.abs(z[0] - 2990) < 1 and math.abs(z[2] - 2980) < 1
+    and T.noInput == true
+  run(10)
+  T.sim.isSessionStarted = true; T.sim.timeToSessionStart = -100; run(1)
+  return waits and placed and #T.teleports == 3 and T.noInput == false
+    and lastMsg():find('SALIDA LANZADA | Manten tu puesto', 1, true) ~= nil and not logText():find('ERROR')
+''')
+
+scenario('offline, salida corta: sin permiso de la pista no se mueve a nadie ni se bloquean los controles en la cuenta regresiva', SHORT_AI + '''
+  T.physicsAllowed = false
+  T.sim.isSessionStarted = false; T.sim.timeToSessionStart = 15000
+  run(5)
+  return #T.teleports == 0 and T.noInput ~= true
+''')
+
+scenario('offline, formacion: la IA anda al ritmo del auto que tiene delante y no adelanta', SHORT_AI + '''
+  T.sim.timeToSessionStart = -100; run(0.5)
+  -- fila: 1 (IA), 0 (tu), 2 (IA). Tu vas lento a 50 km/h; la IA de atras queda pegada a 8 m
+  place(1, 3000, 100); place(0, 2990, 50); place(2, 2982, 100); run(1)
+  local tight = last(T.aiCaps[2]) < 50
+  place(2, 2950, 100); run(1)                              -- 40 m detras: puede acercarse
+  local free = last(T.aiCaps[2]) == 100
+  place(2, 2995, 60); run(1)                               -- se te puso delante: frena para que vuelvas a pasar
+  local back = last(T.aiCaps[2]) == 30
+  return tight and free and back and last(T.aiCaps[1]) == 100
+''')
+
+scenario('offline, salida corta: despues de la verde la IA sigue limitada hasta cruzar la meta', SHORT_AI + '''
+  T.sim.timeToSessionStart = -100; run(0.5)
+  place(1, 3300, 100); place(0, 3290, 100); place(2, 3280, 100); run(2)
+  place(1, 3420, 100); place(0, 3410, 100); place(2, 3400, 100); run(0.5)
+  local green = lastMsg():find('BANDERA VERDE') ~= nil and last(T.aiCaps[1]) ~= math.huge and last(T.aiCaps[2]) ~= math.huge
+  T.cars[1].splinePosition = 0.01; run(0.5)               -- el primero cruza la meta
+  local first = last(T.aiCaps[1]) == math.huge and last(T.aiCaps[2]) ~= math.huge
+  T.cars[2].splinePosition = 0.995; run(0.3); T.cars[2].splinePosition = 0.005; run(0.5)
+  return green and first and last(T.aiCaps[2]) == math.huge
+''')
+
+scenario('salida corta: al cruzar la meta no salta la bandera azul aunque el contador de vueltas no coincida', FL + '''
+  T.cfg.startMode = 2; T.cfg.formShort = true; T.physicsAllowed = true; T.sim.carsCount = 2
+  T.cars[0].racePosition = 2; T.cars[1].racePosition = 1
+  newSession(); T.cars[0].racePosition = 2; T.cars[1].racePosition = 1
+  T.sim.isSessionStarted = false; T.sim.timeToSessionStart = 15000
+  T.cars[0].splinePosition = 0.985; T.cars[1].splinePosition = 0.99; run(3)
+  T.sim.isSessionStarted = true; T.sim.timeToSessionStart = -20000; run(1)
+  -- ruedan hasta la meta; el juego cuenta la vuelta del otro pero no la tuya
+  for k = 1, 60 do
+    T.cars[1].splinePosition = (T.cars[1].splinePosition + 0.002) % 1
+    T.cars[0].splinePosition = (T.cars[0].splinePosition + 0.002) % 1
+    T.cars[1].speedKmh, T.cars[0].speedKmh = 150, 150
+    run(1 / 60)
+  end
+  T.cars[1].lapCount = 1
+  place(1, T.cars[0].position.z - 15, 200); T.cars[1].splinePosition = T.cars[0].splinePosition - 15 / 5000; run(2)
+  return msgCount('BANDERA AZUL') == 0
+''')
+
+scenario('carrera reiniciada desde el menu: se borran sanciones y contadores aunque el juego no avise', '''
+  local c = place(0, 0, 150)
+  c.wheelsOutside = 4; run(1); c.wheelsOutside = 0; run(5)
+  local had = screen():find('INC 0x') == nil and hudScreen():find('INC 1x') ~= nil
+  T.sim.isSessionStarted = false; T.sim.timeToSessionStart = 15000; run(1)
+  return had and hudScreen():find('INC 0x') ~= nil
 ''')
 
 fails = 0

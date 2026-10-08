@@ -33,7 +33,7 @@ A race steward for **Assetto Corsa**. It watches track limits, contact, flags an
 
 Every driver does this, once.
 
-1. Download **`Comisario-1.5.0.zip`** from [Releases](https://github.com/matipriv768-blip/Comisario/releases/latest). Do not unzip it.
+1. Download the **`Comisario-x.x.x.zip`** file of the latest version from [Releases](https://github.com/matipriv768-blip/Comisario/releases/latest). Do not unzip it.
 2. Drag the zip onto the Content Manager window.
 3. Press the three-lines icon (top right) and then **Install**.
 4. Join any session. Move the mouse to the right edge of the screen to show the apps bar, and open **Comisario**.

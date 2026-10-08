@@ -33,7 +33,7 @@ Comisario de carrera para **Assetto Corsa**. Vigila límites de pista, contactos
 
 Esto lo hace cada piloto, una sola vez.
 
-1. Descarga **`Comisario-1.5.0.zip`** desde [Releases](https://github.com/matipriv768-blip/Comisario/releases/latest). No lo descomprimas.
+1. Descarga el archivo **`Comisario-x.x.x.zip`** de la última versión, en [Releases](https://github.com/matipriv768-blip/Comisario/releases/latest). No lo descomprimas.
 2. Arrastra el zip a la ventana de Content Manager.
 3. Pulsa el ícono de las tres rayas (arriba a la derecha) y luego **Install**.
 4. Entra a cualquier sesión. Lleva el mouse al borde derecho de la pantalla: aparece la barra de apps. Abre **Comisario**.

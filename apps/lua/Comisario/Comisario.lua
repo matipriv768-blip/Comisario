@@ -1,6 +1,6 @@
 --[[
   COMISARIO  -  comisario de carrera para Assetto Corsa (app Lua de Custom Shaders Patch)
-  Version 1.5.0  -  offline (contra la IA) y online (con amigos que tengan la app)
+  Version 1.5.1  -  offline (contra la IA) y online (con amigos que tengan la app)
 
   Que hace:
     1. Limites de pista, velocidad en pits y salida en falso.
@@ -22,7 +22,7 @@
   Codigo propio, escrito desde cero. No usa codigo ni archivos de otros plugins.
 ]]
 
-local VERSION = '1.5.0'
+local VERSION = '1.5.1'
 
 -- ---------------------------------------------------------------------------
 -- 1. AJUSTES (se guardan solos entre sesiones)
@@ -1117,6 +1117,10 @@ end
 -- Devuelve el control normal a todos los autos de la IA.
 local function releaseAllAi()
   if not S then return end
+  if S.preLock then
+    S.preLock = false
+    pcall(function () physics.setCarNoInput(false) end)
+  end
   if S.form and S.form.aiCapped then
     S.form.aiCapped = false
     for i = 1, 60 do
@@ -1776,6 +1780,43 @@ local function placeInFormation(i, slot, len)
   end)
 end
 
+-- RS: salida lanzada offline (fila en la cuenta regresiva, IA en orden) y avance de cada auto en la carrera.
+local RS = {}
+
+-- posicion en la pista (0 a 1) del lugar "slot" de la fila
+function RS.slotSpline(slot, len)
+  return 1 - (formStartMeters() + (math.max(1, slot or 1) - 1) * GRID_GAP) / len
+end
+
+-- Avance de cada auto en vueltas, medido por la app. No usa el contador de vueltas del juego, que despues de
+-- una salida corta no siempre coincide entre autos. Un salto grande de un cuadro a otro es un teletransporte
+-- (la fila de la salida corta, el envio a pits) y no se cuenta.
+function RS.progress(sim, n)
+  local len = (sim.trackLengthM and sim.trackLengthM > 100) and sim.trackLengthM or 4000
+  S.prog = S.prog or {}
+  S.progSp = S.progSp or {}
+  for i = 0, n - 1 do
+    local c = ac.getCar(i)
+    if c then
+      local sp = c.splinePosition
+      local prev = S.progSp[i]
+      if S.prog[i] == nil then
+        -- antes de largar todos cuentan desde la meta: los que esperan detras de ella van en negativo
+        if isRace(sim) and not sim.isSessionStarted then
+          S.prog[i] = sp > 0.5 and sp - 1 or sp
+        else
+          S.prog[i] = c.lapCount + sp
+        end
+      elseif prev and sim.isSessionStarted then
+        local dsp = sp - prev
+        if dsp < -0.5 then dsp = dsp + 1 elseif dsp > 0.5 then dsp = dsp - 1 end
+        if math.abs(dsp) * len < 30 then S.prog[i] = S.prog[i] + dsp end
+      end
+      S.progSp[i] = sp
+    end
+  end
+end
+
 -- Lugar real en la largada: cuantos autos conectados parten delante, mas uno.
 -- El puesto de grilla del juego cuenta tambien los cupos vacios del servidor.
 local function startSlot(i, n)
@@ -1789,9 +1830,87 @@ local function startSlot(i, n)
   return slot
 end
 
+-- Offline, salida corta: los autos van a la fila apenas carga la carrera, durante la cuenta regresiva,
+-- y el jugador espera las luces ahi con los controles bloqueados. Asi nadie aparece en la grilla.
+function RS.preStart(sim, car, n)
+  if online or cfg.startMode ~= 2 or not cfg.formShort or not isRace(sim) or not penaltiesActive() then return end
+  if sim.isSessionStarted or not physicsOk() then return end
+  S.preAt = S.preAt or clock
+  if clock - S.preAt < 1.5 then return end
+  local len = trackLen(sim)
+  if not S.prePlaced then
+    S.prePlaced = true
+    S.preFixes, S.preFixAt = 0, clock
+    for i = 0, n - 1 do
+      if ac.getCar(i) then placeInFormation(i, startSlot(i, n), len) end
+    end
+    S.preLock = true
+    pcall(function () physics.setCarNoInput(true) end)
+  elseif S.preFixes < 5 and clock - S.preFixAt > 2 then
+    -- si el juego devolvio algun auto a la grilla, se le vuelve a poner en la fila (pocas veces)
+    S.preFixAt = clock
+    for i = 0, n - 1 do
+      local c = ac.getCar(i)
+      if c and math.abs(c.splinePosition - RS.slotSpline(startSlot(i, n), len)) * len > 3 then
+        S.preFixes = S.preFixes + 1
+        placeInFormation(i, startSlot(i, n), len)
+      end
+    end
+  end
+end
+
+-- Offline: cada auto de la IA anda a la velocidad del que tiene delante en la fila, para que nadie adelante
+-- antes de la largada. Despues de la verde, cada uno queda libre recien al cruzar la meta.
+function RS.aiFollow(dt, f, n)
+  if not f.aiCapped or not f.order then return end
+  f.capT = (f.capT or 0) + dt
+  if f.capT < 0.2 then return end
+  f.capT = 0
+  f.cap, f.freed, f.prevSp, f.crossed = f.cap or {}, f.freed or {}, f.prevSp or {}, f.crossed or {}
+  local pending = 0
+  for p, i in ipairs(f.order) do
+    local c = i ~= 0 and not f.freed[i] and ac.getCar(i) or nil
+    if c then
+      -- cruce de la meta: en la salida corta se ve en la posicion en la pista (el contador del juego puede no
+      -- subir); en la vuelta completa, en el contador de vueltas (el primer paso por la meta no cuenta)
+      local prev = f.prevSp[i]
+      if f.short and prev and prev > 0.8 and c.splinePosition < 0.2 then f.crossed[i] = true end
+      if c.lapCount > (f.lap0[i] or 0) then f.crossed[i] = true end
+      f.prevSp[i] = c.splinePosition
+      local free = false
+      if f.phase ~= 'formation' then
+        if f.crossed[i] then free = true end
+        if f.greenAt and clock - f.greenAt > 40 then free = true end
+      end
+      if free then
+        f.freed[i] = true
+        pcall(function () physics.setAITopSpeed(i, math.huge) end)
+      else
+        pending = pending + 1
+        local cap = cfg.formSpeed
+        local a = f.order[p - 1] and ac.getCar(f.order[p - 1]) or nil
+        if a and not a.isInPitlane then
+          local gap = metersAhead(a, c)
+          if gap < 0 and gap > -60 then
+            cap = 30                -- se adelanto: frena hasta que el otro vuelva a quedar delante
+          elseif gap >= 0 and gap < 40 then
+            cap = math.max(15, math.min(cfg.formSpeed, a.speedKmh + (gap - 14) * 1.5))
+          end
+        end
+        if not f.cap[i] or math.abs(f.cap[i] - cap) > 1 then
+          f.cap[i] = cap
+          pcall(function () physics.setAITopSpeed(i, cap) end)
+        end
+      end
+    end
+  end
+  if pending == 0 then f.aiCapped = false end
+end
+
 local function updateRolling(dt, sim, car, n)
   if cfg.startMode ~= 2 or not isRace(sim) or not penaltiesActive() then return end
   local f = S.form
+  if f and f.aiCapped and not online then RS.aiFollow(dt, f, n) end
   if not f then
     if not sim.isSessionStarted or car.lapCount > 0 or car.isInPitlane then return end
     if sim.timeToSessionStart < -4000 then
@@ -1804,6 +1923,14 @@ local function updateRolling(dt, sim, car, n)
       local c = ac.getCar(j)
       if c and c.racePosition < car.racePosition then f.ahead[#f.ahead + 1] = j end
     end
+    -- orden de la fila: indices de los autos segun su lugar de partida
+    f.order = {}
+    for i = 0, n - 1 do
+      if ac.getCar(i) then f.order[#f.order + 1] = i end
+    end
+    table.sort(f.order, function (x, y) return startSlot(x, n) < startSlot(y, n) end)
+    f.lap0 = {}
+    for _, i in ipairs(f.order) do f.lap0[i] = ac.getCar(i).lapCount end
     S.form = f
     if not online and n > 1 then
       -- contra la IA solo sirve si el juego deja limitarle la velocidad
@@ -1821,7 +1948,10 @@ local function updateRolling(dt, sim, car, n)
       local len = trackLen(sim)
       for i = 0, n - 1 do
         local c = ac.getCar(i)
-        if c then placeInFormation(i, startSlot(i, n), len) end
+        local want = c and RS.slotSpline(startSlot(i, n), len)
+        if c and not (S.prePlaced and math.abs(c.splinePosition - want) * len < 8) then
+          placeInFormation(i, startSlot(i, n), len)
+        end
       end
     end
     if f.short then
@@ -1869,7 +1999,6 @@ local function updateRolling(dt, sim, car, n)
       f.phase = 'green'
       f.greenAt = clock
       S.lights = { start = clock }
-      releaseAllAi()
       announce(0, tr('BANDERA VERDE'), car.lapCount >= 1 and tr('Carrera lanzada')
         or tr('Carrera lanzada. Puedes adelantar después de cruzar la meta'), 1)
     else
@@ -1979,7 +2108,8 @@ local function updateFlags(dt, sim, car, n, race, laps)
   local hazard, hazardDist = nil, 1e9
   local blueJ, blueDist = nil, 1e9
   if live and settled and not forming then
-    local myProgress = car.lapCount + car.splinePosition
+    local prog = S.prog or {}
+    local myProgress = prog[0] or (car.lapCount + car.splinePosition)
     local reach = math.max(30, car.speedKmh / 3.6 * 2.5)   -- 2,5 segundos de pista
     for j = 1, n - 1 do
       local o = ac.getCar(j)
@@ -1992,7 +2122,7 @@ local function updateFlags(dt, sim, car, n, race, laps)
         if cfg.bfEnabled and not danger and ahead < 0 and -ahead < reach and -ahead < blueDist then
           local lapping
           if race then
-            lapping = (o.lapCount + o.splinePosition) - myProgress > 0.5
+            lapping = (prog[j] or (o.lapCount + o.splinePosition)) - myProgress > 0.5
           else
             lapping = o.speedKmh > car.speedKmh + 40
           end
@@ -2291,6 +2421,17 @@ local function step(dt)
     resetSession()
   end
   S.lastLapCount = car.lapCount
+  -- carrera reiniciada desde el menu: la cuenta regresiva vuelve a empezar y el juego no siempre avisa
+  local started = sim.isSessionStarted == true
+  if S.wasStarted and not started then
+    releaseAllAi()
+    resetSession()
+  end
+  S.wasStarted = started
+  if S.preLock and started then
+    S.preLock = false
+    pcall(function () physics.setCarNoInput(false) end)
+  end
 
   -- vuelta recien terminada: en clasificacion se anota si fue valida
   if car.lapCount > S.lapSeen then
@@ -2312,6 +2453,8 @@ local function step(dt)
   checkJumpStart(sim, car)
 
   local n = sim.carsCount
+  RS.preStart(sim, car, n)
+  RS.progress(sim, n)
   local race = isRace(sim)
   local laps = race and sessionLaps(sim) or 0
   S.raceLaps = laps
