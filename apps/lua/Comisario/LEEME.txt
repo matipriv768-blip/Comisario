@@ -6,6 +6,9 @@ REQUISITOS
 - Assetto Corsa en PC (Windows) con Content Manager.
 - Custom Shaders Patch 0.2.x o superior, con las apps Lua activas.
 
+Tutorial completo (offline, entrar a un servidor y crear uno):
+https://github.com/matipriv768-blip/Comisario
+
 INSTALACION
 1. Arrastra el archivo Comisario-1.5.0.zip a la ventana de Content Manager.
 2. Pulsa el icono de las tres rayas (arriba a la derecha) y luego "Install".

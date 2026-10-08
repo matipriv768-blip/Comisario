@@ -1,6 +1,9 @@
 COMISARIO SERVIDOR 1.10
 Script online para el servidor (opcional)
 
+El tutorial paso a paso, esta en la pagina del
+proyecto: https://github.com/matipriv768-blip/Comisario (caso 3).
+
 QUE HACE
 El servidor le envia este script a cada piloto al conectarse: nadie tiene que
 instalarlo. Con el script puesto:
@@ -91,11 +94,12 @@ requireApp = 1        quien entre sin la app Comisario activa no pasa de 60 km/h
 language = 'en'       opcional: los mensajes de este script salen en ingles.
                       El idioma de la app lo elige cada piloto en sus ajustes.
 
-AJUSTE RECOMENDADO DEL SERVIDOR
-En la pestana RULES del preset, deja la sancion por salida en falso en "auto
-bloqueado hasta la largada" (car locked). Con la salida lanzada corta los autos
-se mueven a la fila durante la cuenta regresiva, y con las otras opciones no
-esta probado.
+AJUSTES RECOMENDADOS DEL SERVIDOR (pestana RULES del preset)
+- Allowed tyres out: 4. Asi el juego no pone su propia sancion por limites de
+  pista encima de la de Comisario.
+- Jump start (salida en falso): car locked (auto bloqueado hasta la largada).
+  Con la salida lanzada corta los autos se mueven a la fila durante la cuenta
+  regresiva, y con las otras opciones no esta probado.
 
 ACTUALIZAR EL SCRIPT
 Con la forma A: entra a tu gist, pulsa "Edit", reemplaza todo el contenido por
