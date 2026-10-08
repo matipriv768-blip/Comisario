@@ -1,0 +1,241 @@
+COMISARIO 1.5.0
+Comisario de carrera para Assetto Corsa. Offline (contra la IA) y online
+(con amigos que tengan la app instalada).
+
+REQUISITOS
+- Assetto Corsa en PC (Windows) con Content Manager.
+- Custom Shaders Patch 0.2.x o superior, con las apps Lua activas.
+
+INSTALACION
+1. Arrastra el archivo Comisario-1.5.0.zip a la ventana de Content Manager.
+2. Pulsa el icono de las tres rayas (arriba a la derecha) y luego "Install".
+3. Entra a una sesion. Mueve el mouse al borde derecho de la pantalla y abre
+   "Comisario" y "Comisario: clasificacion" en la lista de apps.
+4. El engranaje de la ventana Comisario abre los ajustes.
+
+AJUSTES E IDIOMA
+- Arriba de los ajustes se elige el idioma: Espanol o English. Cambia los
+  ajustes, los avisos y los indicadores.
+- Cada fila tiene el nombre a la izquierda y el control a la derecha. Donde hay
+  un "(?)", al pasar el mouse por encima aparece la explicacion.
+- Se ven solo las opciones principales. "Mostrar todas las opciones" agrega las
+  finas en cada pestana.
+- Pestanas: Inicio (resumen del reglamento, online), Largada, Pista (limites y
+  pits), Contactos, Sanciones (duraciones y puntos de incidente), Banderas,
+  Pantalla (tamano y lugar de los indicadores) y Mas (IA, registro, pruebas).
+
+Instalacion manual: copia la carpeta "apps" del zip dentro de la carpeta
+"assettocorsa" (la del juego en Steam).
+
+REGLAMENTO (resumen en la pestana Inicio de los ajustes)
+Hay un solo reglamento por defecto. Cada valor se cambia en las otras pestanas
+y el boton "Restablecer el reglamento por defecto" lo deja como venia.
+- Limites de pista: solo cuenta el atajo con ventaja. Si despues de salir
+  sueltas y vuelves a menos del 90% de la velocidad con que saliste (tienes
+  hasta 1 segundo despues de volver a la pista), no hay aviso. Una salida de
+  mas de 3 segundos se toma como accidente. Tres avisos; a la cuarta, +5 s y
+  los avisos vuelven a cero.
+- Contacto evitable: un aviso y despues +5 s. Causar un choque fuerte: +10 s.
+- Ganar un puesto con un contacto o por fuera de la pista: devolverlo o +5 s.
+- Pits (limite 82 km/h): hasta 100 km/h, drive-through; hasta 200, stop and go
+  de 10 s; mas, descalificacion.
+- Salida en falso: hasta 50 km/h, drive-through; hasta 200, stop and go de
+  10 s; mas, descalificacion.
+- Salida lanzada: pasar el limite, drive-through; pasarlo por mas de un 25%
+  o adelantar antes de la bandera verde, stop and go de 30 s.
+- Adelantar con bandera amarilla: devolver el puesto o drive-through.
+- Drive-through y stop and go: 3 vueltas para cumplir; si no, descalificacion.
+  En las ultimas 4 vueltas se pueden dejar sin cumplir y pasan a +20 s.
+- Puntos de incidente: 1x salida, 2x trompo, muro o contacto, 4x choque fuerte.
+  Al pasar de 17, descalificacion.
+Al actualizar a la version 1.1 se aplica una vez este reglamento. El tipo de
+salida y sus valores (velocidad, metros de la verde) no se tocan.
+
+DESCALIFICACION Y GANADOR
+- Un descalificado queda ultimo en la clasificacion de Comisario y no puede
+  ganar. Con el script del servidor puesto, su auto es enviado a pits y queda
+  sin controles hasta que termine la sesion: no puede acelerar ni moverse.
+  Offline pasa lo mismo si la pista esta autorizada.
+- Al terminar la carrera, Comisario anuncia al ganador con las sanciones ya
+  aplicadas. Si alguien cruzo primero pero tenia segundos de sancion, el aviso
+  lo dice. La tabla final del juego no se puede cambiar: el resultado oficial
+  es el de la ventana "Comisario: clasificacion".
+
+BANDERAS (pestana Banderas)
+Se ven en la barra de estado y en el aviso.
+- Verde: pista libre (al largar y cuando se despeja una amarilla).
+- Amarilla: hay un auto detenido o sin control hasta 300 m adelante. Prohibido
+  adelantar: si pasas a alguien, se pide devolver el puesto y, si no,
+  drive-through. Pasar al auto detenido no es falta.
+- Azul: en carrera, viene alguien que te saca una vuelta. En practica y
+  clasificacion, alguien mucho mas rapido. Por defecto es solo aviso; se puede
+  sancionar a quien no cede el paso en 20 segundos.
+- Blanca: ultima vuelta.   A cuadros: meta.   Negra: descalificado.
+- Blanca y negra: aviso del comisario.   Negra con franja roja: sancion.
+
+DIRECCION DE CARRERA
+En la ventana Comisario hay tres botones: Amarilla total, Roja y Verde.
+Offline los usas tu. Online solo los ve el director de carrera, y lo que
+decreta vale para todos los que tengan la app.
+- Amarilla total: maximo 80 km/h (ajustable) y prohibido adelantar.
+- Roja: sesion detenida, misma velocidad maxima, sin adelantar, volver a pits.
+  La app no detiene la sesion del juego: solo avisa y vigila.
+- Hay 8 segundos para frenar. Despues, correr sobre el limite se sanciona.
+- Con el script del servidor 1.9 o posterior, el juego ademas corta el acelerador sobre esa
+  velocidad. Contra la IA, se le baja la velocidad si la pista lo permite.
+
+SALIDA (pestana Carrera)
+- Parada: la normal del juego, con control de salida en falso.
+- Lanzada: la primera vuelta es de formacion. Hay que mantener el puesto y no
+  pasar de la velocidad fijada (100 km/h). Cuando al lider le faltan 100 metros
+  para la meta sale la bandera verde (asi el auto ya esta libre al cruzarla),
+  y cada piloto puede adelantar despues de cruzar la meta. Los metros se
+  cambian en los ajustes; con 0, la verde sale justo en la meta.
+  El juego cuenta esa vuelta como vuelta de carrera: suma una al total.
+  Contra la IA solo funciona en pistas autorizadas para controlarla.
+
+SALIDA LANZADA CORTA (pestana Carrera)
+En vez de dar la vuelta de formacion completa, apenas larga la carrera cada
+auto es llevado a la ultima parte de la pista, en fila y en el orden de la
+grilla: el primero a 500 metros de la meta (ajustable) y los demas cada 10
+metros hacia atras. Desde ahi ruedan a la velocidad de formacion hasta la
+bandera verde, que sale 100 metros antes de la meta. Se puede adelantar
+despues de cruzar la meta. No hay que sumar una vuelta a la carrera.
+- Online necesita el script del servidor 1.9 o posterior, que es el que mueve los autos.
+- Offline necesita la pista autorizada (ver CONTROL DE LA IA EN LA PISTA).
+- Si no se puede mover los autos, se hace la vuelta de formacion completa.
+Para elegir el punto: mide en la pista cuantos metros hay desde la salida de
+la ultima curva (o de la penultima) hasta la meta y pon ese valor.
+
+INDICADOR DE LARGADA
+Es una ventana aparte ("Comisario: largada"). En la formacion muestra tu
+velocidad contra el limite, en verde si vas bien, amarillo si te pasas un poco
+y rojo si te pasas mas de 10 km/h. Al salir la bandera verde se enciende un
+semaforo de cinco luces verdes. Tambien muestra tu velocidad contra el limite
+durante una amarilla total o una bandera roja.
+
+SCRIPT DEL SERVIDOR
+Con el archivo comisario_servidor.lua puesto en el servidor, el juego corta el
+acelerador sobre la velocidad fijada en la vuelta de formacion y durante la
+amarilla total o la bandera roja. Las instrucciones estan en el archivo
+INSTRUCCIONES_SERVIDOR.txt.
+El tipo de salida (parada o lanzada), la velocidad de la formacion y los metros
+de la bandera verde se eligen en la app, pestana Carrera; si hay director de
+carrera, valen los suyos para todos. Quien no tenga la app usa los valores
+escritos en el servidor. Si el servidor tiene lockStart = 1, el tipo de salida
+lo decide el servidor y la app no puede cambiarlo.
+Sin el script, la salida lanzada sigue funcionando con avisos y sanciones.
+
+DEVOLVER LA POSICION (pestana Carrera)
+Si ganas un puesto con un contacto evitable, o adelantas por fuera de la pista,
+el comisario te pide devolverlo y te da 20 segundos. Si dejas pasar al otro,
+no hay sancion. Si no, drive-through (o la sancion que elijas).
+Un choque fuerte se sanciona directo, sin opcion de devolver.
+
+SANCIONES DISPONIBLES
+Ninguna, tiempo, levantar el pie, drive-through y stop and go (entrar a pits y
+quedar detenido 10 segundos). Cada infraccion tiene su selector.
+Descalificacion: al pasar el maximo de puntos de incidente (17) o, con la
+regla real activada, por no cumplir un drive-through o stop and go a tiempo.
+
+CONTACTOS
+La fuerza se mide con la diferencia de velocidad entre los dos autos:
+- Roce: menos de 10 km/h. No sanciona ni suma puntos.
+- Contacto: entre 10 y 30 km/h.
+- Choque fuerte: mas de 30 km/h.
+Un golpe contra el muro solo cuenta si el auto pierde 15 km/h o mas de golpe.
+Salir al pasto o pisar un piano no cuenta como golpe.
+El responsable es quien alcanza por detras yendo mas rapido. Lado a lado es
+incidente de carrera y no se sanciona. Si el golpeado pierde el auto o se sale
+de pista en los 3 segundos siguientes, el contacto pasa a choque fuerte.
+
+LA IA
+La IA tambien es vigilada y cumple igual que tu:
+- Tiempo: segundos en la clasificacion corregida.
+- Levantar el pie: suelta el acelerador en pista durante los mismos segundos
+  que tu. No frena ni se le limita la velocidad. Espera a no tener un auto
+  pegado detras y, si va justo delante tuyo, te avisa con bandera amarilla.
+- Drive-through: se le pide entrar a pits de verdad.
+
+CONTROL DE LA IA EN LA PISTA
+Assetto Corsa solo deja que una app controle a la IA si la pista lo autoriza.
+Sin esa autorizacion, las sanciones de la IA van a la clasificacion.
+Para autorizar una pista: engranaje > Mas > "Permitir en esta pista".
+Eso agrega dos lineas al archivo surfaces.ini de la pista y guarda una copia
+del original al lado. Despues hay que salir de la sesion y volver a entrar.
+Hay que hacerlo una vez por pista.
+Mientras el cambio este puesto, los servidores online pueden rechazar esa
+pista. El boton "Deshacer el cambio en esta pista" la deja como estaba.
+
+ONLINE (CARRERAS CON AMIGOS)
+No hace falta instalar nada en el servidor. Cada piloto instala esta app, y las
+apps se avisan entre si a traves del chat del servidor (los mensajes no se ven).
+- Cada app vigila solo a su propio auto: limites, pits, trompos y contactos.
+- En un contacto, cada app decide si su piloto fue el responsable. Si lo fue,
+  lo sanciona y le avisa al golpeado.
+- La ventana "Comisario: clasificacion" muestra los incidentes y sanciones de
+  todos. Quien no tiene la app aparece como "sin app" y nadie lo vigila.
+- Director de carrera: en engranaje > Inicio, uno de los pilotos marca
+  "Soy el director de carrera". Su reglamento se aplica a todos mientras este
+  conectado. Si nadie lo marca, cada uno corre con sus propias reglas.
+Antes de abrir un servidor: si autorizaste alguna pista para controlar a la IA,
+pulsa "Deshacer el cambio en esta pista". Con el archivo cambiado, el servidor
+rechaza a quienes tengan la pista original.
+- Administrador: si el servidor tiene clave (adminPass en sus opciones, ver
+  INSTRUCCIONES_SERVIDOR.txt), solo quien escriba esa clave en engranaje >
+  Reglamento es el administrador. Los demas no pueden marcarse director,
+  cambiar el reglamento, decretar banderas ni apagar el comisario: corren con
+  el reglamento del administrador (o con el por defecto, si aun no entra).
+Limites: como cada app juzga a su propio auto, alguien que sepa programar podria
+modificar la suya para no sancionarse o saltarse la clave. Sirve para correr
+entre amigos, no para ligas con premio.
+
+SESIONES
+- Practica: el comisario cuenta salidas e incidentes, pero no sanciona.
+- Clasificacion: la unica sancion es invalidar la vuelta (por salirte de pista
+  o por causar un choque). La barra de estado muestra si la vuelta actual es
+  valida y tu mejor vuelta valida.
+- Carrera: sanciones completas.
+Si desmarcas la opcion en los ajustes, sanciona siempre como en carrera.
+
+ICONOS
+Las banderas y las sanciones se muestran con iconos (carpeta "img" de la app).
+Cada sancion pendiente indica que hay que hacer: "Pasa por pits sin parar",
+"Entra a pits y detente 10 s", "Deja pasar a ...". Si prefieres las banderas
+simples de antes, desmarca "Iconos de banderas y sanciones" en engranaje >
+Pantalla.
+
+INDICADORES EN PANTALLA
+Son cuatro: Estado (como vas), Largada (velocidad contra el limite y semaforo
+verde), Aviso (que paso) y Sancion (que tienes que hacer).
+- Interfaz fija (por defecto): los cuatro van en una columna centrada en un
+  lugar fijo de la pantalla. No son ventanas: no se mueven ni se cierran por
+  accidente. El lugar se elige una vez en engranaje > Pantalla, con las barras
+  "Altura" y "Posicion horizontal". Por defecto queda debajo del espejo
+  virtual. "Mostrar un ejemplo para acomodarla" los deja todos a la vista.
+- Sin fondo (por defecto): solo el icono y las letras, con un contorno oscuro
+  para que se lean sobre la pista. Marca "Fondo oscuro detras del texto" si
+  prefieres los carteles con rectangulo.
+- Si apagas la interfaz fija (con "Mostrar todas las opciones" marcado), cada
+  indicador vuelve a ser una ventana suelta que se mueve con el mouse (boton
+  "Abrir todos los indicadores").
+- El semaforo verde de la largada queda 8 segundos en pantalla.
+Al actualizar a la 1.4 se aplica una vez la interfaz fija y sin fondo.
+
+SANCIONES PARA TI
+- Tiempo: suma segundos a tu total.
+- Levantar el pie: 3 segundos sin acelerar dentro de 25 segundos. Si no, +10 s.
+- Drive-through: pasar por boxes sin detenerse dentro de 3 vueltas. Si no, +30 s.
+
+REGISTRO
+Todo queda anotado en:
+Documentos\Assetto Corsa\logs\comisario_log.txt
+Cada contacto queda con su velocidad relativa, lo que sirve para ajustar los
+umbrales de roce y choque.
+
+LIMITES CONOCIDOS
+- Online, con mucho lag dos apps pueden ver un mismo contacto de forma
+  distinta. En ese caso nadie es sancionado.
+- La descalificacion no expulsa al piloto del servidor: lo deja ultimo en la
+  clasificacion de Comisario y, con el script del servidor, limitado a 50 km/h.
+- La clasificacion corregida se ve en la app; no cambia la tabla final del juego.
