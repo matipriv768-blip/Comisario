@@ -1666,7 +1666,7 @@ TWO = '''
   newSession(); T.cars[0].racePosition = 2; T.cars[1].racePosition = 1; T.cars[2].racePosition = 3
 '''
 
-scenario('fila doble: 1 y 2 lado a lado a 500 m de la meta, el 3 en la fila siguiente, todos mirando hacia adelante', TWO + '''
+scenario('fila doble: 1 y 2 lado a lado y pegados a la linea de la IA, el 3 en la fila siguiente, todos mirando hacia adelante', TWO + '''
   T.sim.timeToSessionStart = -100
   for i = 0, 2 do T.cars[i].splinePosition = 0.98 end
   run(0.5)
@@ -1678,7 +1678,7 @@ scenario('fila doble: 1 y 2 lado a lado a 500 m de la meta, el 3 en la fila sigu
   end
   return facing and #T.teleports == 3
     and math.abs(p[1].z - 3000) < 0.5 and math.abs(p[0].z - 3000) < 0.5 and math.abs(p[2].z - 2988) < 0.5
-    and math.abs(p[1].x - p[0].x) > 4.5 and math.abs(p[1].x - p[2].x) < 0.5 and math.abs(p[1].x) < 3 and math.abs(p[0].x) < 3
+    and math.abs(p[1].x - p[0].x) > 3.5 and math.abs(p[1].x - p[2].x) < 0.5 and math.abs(p[1].x) < 2.5 and math.abs(p[0].x) < 2.5
 ''')
 
 scenario('fila doble sin el ancho de la pista: toda la fila va en una columna a 10 m, sin salirse de la linea', TWO + '''
@@ -1691,8 +1691,8 @@ scenario('fila doble sin el ancho de la pista: toda la fila va en una columna a 
     and p[0].x == 0 and p[1].x == 0 and logText():find('una fila', 1, true) ~= nil and not logText():find('ERROR')
 ''')
 
-scenario('fila doble en una pista angosta (7 m): una sola columna', TWO + '''
-  T.sides = vec2(3.5, 3.5); T.sim.isSessionStarted = false; T.sim.timeToSessionStart = 15000
+scenario('fila doble en una pista angosta (6 m): una sola columna', TWO + '''
+  T.sides = vec2(3, 3); T.sim.isSessionStarted = false; T.sim.timeToSessionStart = 15000
   for i = 0, 2 do T.cars[i].splinePosition = 0.98 end
   run(2)
   return T.cars[0].position.x == 0 and T.cars[1].position.x == 0 and math.abs(T.cars[0].position.z - 2990) < 0.5
@@ -1705,11 +1705,29 @@ scenario('fila doble con un muro o desnivel al lado: no se pone un auto ahi, una
   return T.cars[0].position.x == 0 and T.cars[1].position.x == 0 and math.abs(T.cars[2].position.z - 2980) < 0.5
 ''')
 
+scenario('fila doble con la linea de la IA cerca de un borde: la pareja se corre un poco, sin pasar el borde ni alejarse de la linea', TWO + '''
+  T.sides = vec2(10, 2.5); T.sim.isSessionStarted = false; T.sim.timeToSessionStart = 15000
+  for i = 0, 2 do T.cars[i].splinePosition = 0.98 end
+  run(2)
+  local a, b = T.cars[1].position.x, T.cars[0].position.x
+  -- en la pista de prueba el lado +1 es x negativo: la pareja se corre 0,8 m hacia ese lado
+  local far = math.max(math.abs(a), math.abs(b))
+  return math.abs(a - b) > 3.5 and far < 2.8 and far > 2.6
+''')
+
+scenario('fila doble con la linea de la IA pegada a un borde: una sola columna (la IA lejos de su linea no arranca)', TWO + '''
+  T.sides = vec2(10, 1); T.cfg.writeLog = true; T.sim.isSessionStarted = false; T.sim.timeToSessionStart = 15000
+  for i = 0, 2 do T.cars[i].splinePosition = 0.98 end
+  run(6)
+  return T.cars[0].position.x == 0 and T.cars[1].position.x == 0 and math.abs(T.cars[0].position.z - 2990) < 0.5
+    and logText():find('10.0 m y 1.0 m', 1, true) ~= nil
+''')
+
 scenario('fila doble: cada auto movido se despierta en el motor de fisica', TWO + '''
   T.sim.isSessionStarted = false; T.sim.timeToSessionStart = 15000
   for i = 0, 2 do T.cars[i].splinePosition = 0.98 end
   run(2)
-  return T.awake and T.awake[0] and T.awake[1] and T.awake[2] and math.abs(T.cars[0].position.x - T.cars[1].position.x) > 4.5
+  return T.awake and T.awake[0] and T.awake[1] and T.awake[2] and math.abs(T.cars[0].position.x - T.cars[1].position.x) > 3.5
 ''')
 
 scenario('formacion: si la IA no arranca se la despierta, despues se arma una sola fila y al final se la suelta', TWO + '''
@@ -1722,11 +1740,11 @@ scenario('formacion: si la IA no arranca se la despierta, despues se arma una so
   T.awake = {}
   run(4)                                                    -- nadie se mueve
   local woke = (T.awake[1] or 0) >= 1
-  local beside = math.abs(T.cars[1].position.x - T.cars[2].position.x) > 4.5
-  run(2.5)
+  local beside = math.abs(T.cars[1].position.x - T.cars[2].position.x) > 3.5
+  run(3.5)
   local single = T.cars[1].position.x == 0 and T.cars[2].position.x == 0 and math.abs(T.cars[2].position.z - 2990) < 0.5
     and math.abs(T.cars[0].position.z - 2980) < 0.5 and msgCount('una sola fila') + (screen():find('una sola fila', 1, true) and 1 or 0) >= 0
-  run(4.5)
+  run(5)
   return woke and beside and single and last(T.aiCaps[1]) == math.huge and last(T.aiCaps[3]) == math.huge
     and lastMsg():find('BANDERA VERDE') == nil and not logText():find('ERROR')
     and logText():find('se despierta a la IA', 1, true) ~= nil and logText():find('se arma una sola fila', 1, true) ~= nil

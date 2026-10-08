@@ -1,5 +1,10 @@
 # Cambios
 
+## 1.5.5
+- Fila doble offline: la pareja de cada fila ahora va pegada a la línea de la IA (1,9 m a cada lado) y no al centro de la pista. En la prueba en Spa los autos que quedaron lejos de esa línea no arrancaban, y los que quedaron cerca sí. Si la línea va pegada a un borde y la pareja no cabe cerca de ella, la fila se arma en una columna desde el principio, sin moverla a mitad de la formación.
+- El registro anota el espacio que hay a cada lado de la línea de la IA donde se arma la fila.
+- La vigilancia de la formación espera un poco más después de despertar a la IA antes de pasar a una sola fila.
+
 ## 1.5.4
 - Corregido: offline, con la fila doble la IA podía quedarse detenida en la fila y el juego terminaba retirándola (visto en Spa). Ahora cada auto movido se "despierta" en el motor de física, y si a los pocos segundos de la formación la IA de adelante sigue sin moverse, la app la vuelve a despertar; si tampoco arranca, arma la fila en una sola columna, y como último recurso le quita el límite de velocidad. Todo queda anotado en el registro.
 - La fila doble solo se arma donde caben dos autos lado a lado: si la pista es angosta en ese punto o al costado hay un muro o desnivel, toda la fila va en una columna (antes el segundo de cada fila quedaba a 6 m del de delante).

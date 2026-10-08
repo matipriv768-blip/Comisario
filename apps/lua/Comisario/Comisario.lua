@@ -1,6 +1,6 @@
 --[[
   COMISARIO  -  comisario de carrera para Assetto Corsa (app Lua de Custom Shaders Patch)
-  Version 1.5.4  -  offline (contra la IA) y online (con amigos que tengan la app)
+  Version 1.5.5  -  offline (contra la IA) y online (con amigos que tengan la app)
 
   Que hace:
     1. Limites de pista, velocidad en pits y salida en falso.
@@ -22,7 +22,7 @@
   Codigo propio, escrito desde cero. No usa codigo ni archivos de otros plugins.
 ]]
 
-local VERSION = '1.5.4'
+local VERSION = '1.5.5'
 
 -- ---------------------------------------------------------------------------
 -- 1. AJUSTES (se guardan solos entre sesiones)
@@ -1756,8 +1756,10 @@ end
 
 local GRID_GAP = 10   -- metros entre un auto y el siguiente en la fila de la salida corta
 -- Fila doble: los autos van de a dos, uno al lado del otro. ROW_GAP es la distancia entre una fila y la siguiente
--- y LANE la distancia de cada auto al centro de la pista.
-local FORM2 = { ROW_GAP = 12, LANE = 2.6 }
+-- y LANE la distancia de cada auto a la linea de la IA. La IA que queda lejos de su linea no arranca: por eso
+-- la pareja va pegada a esa linea y no al centro de la pista. EDGE es lo minimo hasta el borde y SHIFT lo mas que
+-- se puede correr la pareja hacia un lado cuando la linea va cerca de un borde.
+local FORM2 = { ROW_GAP = 12, LANE = 1.9, EDGE = 1.4, SHIFT = 1.5 }
 
 -- Lugar "slot" de la largada: metros antes de la meta y lado (1 o -1; 0 = al centro, una sola fila)
 function FORM2.spot(slot, twoWide)
@@ -1773,16 +1775,23 @@ function FORM2.sameRow(a, b)
   return cfg.formTwoWide and not FORM2.single and math.ceil(a / 2) == math.ceil(b / 2)
 end
 
--- Distancia hacia el lado (desde la linea de la IA) para un auto de la fila doble, o nil si la pista es muy
--- angosta en ese punto o el juego no informa el ancho. Mismo calculo que la app DynamicReturn de CSP.
+-- Distancia hacia el lado (desde la linea de la IA) para un auto de la fila doble, o nil si no caben dos autos
+-- cerca de la linea o el juego no informa el ancho. w.x es el espacio hacia el lado +1 y w.y hacia el -1
+-- (igual que en la app DynamicReturn de CSP).
 function FORM2.lateral(sp, side)
   local ok, w = pcall(ac.getTrackAISplineSides, sp)
-  if not ok or not w or not (w.x > 0 and w.y > 0) then return nil end
-  local half = (w.x + w.y) / 2
-  if half < 4 or half > 25 then return nil end
-  local lane = math.min(FORM2.LANE, half - 1.8)
-  if lane < 2 then return nil end
-  return (w.x - w.y) / 2 + side * lane
+  if not ok or not w or not (w.x > 0 and w.y > 0) or w.x + w.y > 50 then return nil end
+  if not FORM2.logged then
+    FORM2.logged = true
+    addLog(string.format('Fila doble: espacio desde la linea de la IA hacia cada lado %.1f m y %.1f m', w.x, w.y))
+  end
+  -- la pareja ocupa de c - LANE a c + LANE; c se corre lo justo para que ninguno quede cerca de un borde
+  local room = FORM2.LANE + FORM2.EDGE
+  local lo, hi = room - w.y, w.x - room
+  if lo > hi then return nil end
+  local c = math.max(lo, math.min(hi, 0))
+  if math.abs(c) > FORM2.SHIFT then return nil end
+  return c + side * FORM2.LANE
 end
 
 -- Altura del asfalto en el punto corrido hacia el lado. nil si ahi hay algo mucho mas alto o mas bajo que la
@@ -1919,7 +1928,7 @@ function RS.preStart(sim, car, n)
   if not S.prePlaced then
     S.prePlaced = true
     S.preFixes, S.preFixAt = 0, clock
-    FORM2.single = nil
+    FORM2.single, FORM2.logged = nil, nil
     local moved = RS.placeAll(n, len, false)
     addLog(string.format('Cuenta regresiva: %d de %d autos llevados a la fila (%s)', moved, n,
       (cfg.formTwoWide and not FORM2.single) and 'dos filas' or 'una fila'))
@@ -2014,7 +2023,7 @@ end
 function RS.watch(f, n, stuck)
   if not f.short or clock - f.startAt < 1.5 then return end
   f.stillT = stuck and (f.stillT or 0) + 0.2 or 0
-  if f.stillT < 2 then return end
+  if f.stillT < ((f.wakes or 0) == 0 and 2 or 3) then return end
   f.stillT = 0
   f.wakes = (f.wakes or 0) + 1
   local parts = {}
