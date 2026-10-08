@@ -1,5 +1,11 @@
 # Cambios
 
+## 1.5.4
+- Corregido: offline, con la fila doble la IA podía quedarse detenida en la fila y el juego terminaba retirándola (visto en Spa). Ahora cada auto movido se "despierta" en el motor de física, y si a los pocos segundos de la formación la IA de adelante sigue sin moverse, la app la vuelve a despertar; si tampoco arranca, arma la fila en una sola columna, y como último recurso le quita el límite de velocidad. Todo queda anotado en el registro.
+- La fila doble solo se arma donde caben dos autos lado a lado: si la pista es angosta en ese punto o al costado hay un muro o desnivel, toda la fila va en una columna (antes el segundo de cada fila quedaba a 6 m del de delante).
+- Corregido: un auto retirado que el juego manda a pits podía hacer salir la bandera verde antes de tiempo.
+- El script del servidor no cambia (sigue en 1.11).
+
 ## 1.5.3
 - Salida lanzada corta en dos filas: 1 y 2 lado a lado, 3 y 4 en la fila siguiente, respetando el orden de la grilla. Offline se elige en la app (Largada > Dos filas); online lo hace el script del servidor 1.11 (opción `twoWide`, activada por defecto). La IA tiende a ponerse en una sola fila al avanzar.
 - Corregido: con la bandera verde la IA que larga delante del jugador seguía limitada y lo obligaba a pasarla antes de la meta. Ahora queda libre con la verde; la de atrás sigue sin poder pasar al de delante hasta la meta.

@@ -1,6 +1,6 @@
 --[[
   COMISARIO  -  comisario de carrera para Assetto Corsa (app Lua de Custom Shaders Patch)
-  Version 1.5.3  -  offline (contra la IA) y online (con amigos que tengan la app)
+  Version 1.5.4  -  offline (contra la IA) y online (con amigos que tengan la app)
 
   Que hace:
     1. Limites de pista, velocidad en pits y salida en falso.
@@ -22,7 +22,7 @@
   Codigo propio, escrito desde cero. No usa codigo ni archivos de otros plugins.
 ]]
 
-local VERSION = '1.5.3'
+local VERSION = '1.5.4'
 
 -- ---------------------------------------------------------------------------
 -- 1. AJUSTES (se guardan solos entre sesiones)
@@ -1762,7 +1762,7 @@ local FORM2 = { ROW_GAP = 12, LANE = 2.6 }
 -- Lugar "slot" de la largada: metros antes de la meta y lado (1 o -1; 0 = al centro, una sola fila)
 function FORM2.spot(slot, twoWide)
   slot = math.max(1, slot or 1)
-  if twoWide then
+  if twoWide and not FORM2.single then
     return FORM2.startMeters() + (math.ceil(slot / 2) - 1) * FORM2.ROW_GAP, (slot % 2 == 1) and 1 or -1
   end
   return FORM2.startMeters() + (slot - 1) * GRID_GAP, 0
@@ -1770,7 +1770,29 @@ end
 
 -- en una fila doble, dos lugares de la misma fila van lado a lado
 function FORM2.sameRow(a, b)
-  return cfg.formTwoWide and math.ceil(a / 2) == math.ceil(b / 2)
+  return cfg.formTwoWide and not FORM2.single and math.ceil(a / 2) == math.ceil(b / 2)
+end
+
+-- Distancia hacia el lado (desde la linea de la IA) para un auto de la fila doble, o nil si la pista es muy
+-- angosta en ese punto o el juego no informa el ancho. Mismo calculo que la app DynamicReturn de CSP.
+function FORM2.lateral(sp, side)
+  local ok, w = pcall(ac.getTrackAISplineSides, sp)
+  if not ok or not w or not (w.x > 0 and w.y > 0) then return nil end
+  local half = (w.x + w.y) / 2
+  if half < 4 or half > 25 then return nil end
+  local lane = math.min(FORM2.LANE, half - 1.8)
+  if lane < 2 then return nil end
+  return (w.x - w.y) / 2 + side * lane
+end
+
+-- Altura del asfalto en el punto corrido hacia el lado. nil si ahi hay algo mucho mas alto o mas bajo que la
+-- linea de la IA (un muro, una zanja): el auto no se pone ahi.
+function FORM2.ground(x, y, z)
+  local ok, d = pcall(physics.raycastTrack, vec3(x, y + 3, z), vec3(0, -1, 0), 8)
+  if not ok or type(d) ~= 'number' or d <= 0 then return y end
+  local g = y + 3 - d
+  if math.abs(g - y) > 1.2 then return nil end
+  return g
 end
 
 local function trackLen(sim)
@@ -1798,20 +1820,21 @@ local function placeInFormation(i, slot, len)
     local px, py, pz = a.x, a.y, a.z
     if side ~= 0 then
       -- fila doble: se corre el auto hacia un lado del centro de la pista (el ancho lo da el juego)
-      local ok, w = pcall(ac.getTrackAISplineSides, sp)
+      local off = FORM2.lateral(sp, side)
       local lx, lz = -dz / dd, dx / dd
       local ll = math.sqrt(lx * lx + lz * lz)
-      if ok and w and (w.x + w.y) > 6 and ll > 0.001 then
-        local off = (w.x - w.y) / 2 + side * math.min(FORM2.LANE, (w.x + w.y) / 2 - 1.5)
-        px, pz = px + lx / ll * off, pz + lz / ll * off
-      elseif side < 0 then
-        -- sin el ancho de la pista no se arriesga a sacarlo de ella: el segundo de la fila va 6 m detras
-        local back = ac.trackProgressToWorldCoordinate(sp - 6 / len)
-        px, py, pz = back.x, back.y, back.z
+      local gy = off and ll > 0.001 and FORM2.ground(px + lx / ll * off, py, pz + lz / ll * off)
+      if not gy then
+        -- no cabe un auto al lado en este punto: toda la fila pasa a una columna (quien llamo la vuelve a armar)
+        FORM2.single = true
+        error('sin espacio para la fila doble')
       end
+      px, py, pz = px + lx / ll * off, gy, pz + lz / ll * off
     end
     -- el juego espera la direccion al reves: hacia donde apunta la cola del auto
     physics.setCarPosition(i, vec3(px, py + 0.2, pz), vec3(-dx / dd, -dy / dd, -dz / dd))
+    -- un auto movido queda "dormido" en el motor de fisica hasta que algo lo toca: se le despierta
+    pcall(physics.awakeCar, i)
   end)
 end
 
@@ -1866,6 +1889,25 @@ local function startSlot(i, n)
   return slot
 end
 
+-- Lleva a todos a su lugar de la fila. Con skipNear no se mueve a quien ya esta en su lugar. Si la fila doble
+-- no cabe en esta pista, se vuelve a armar entera en una sola columna.
+function RS.placeAll(n, len, skipNear)
+  local wasSingle = FORM2.single
+  local moved = 0
+  for i = 0, n - 1 do
+    local c = ac.getCar(i)
+    local want = c and RS.slotSpline(startSlot(i, n), len)
+    if c and not (skipNear and math.abs(c.splinePosition - want) * len < 8) and placeInFormation(i, startSlot(i, n), len) then
+      moved = moved + 1
+    end
+  end
+  if FORM2.single and not wasSingle then
+    addLog('Fila doble: la pista es muy angosta en ese punto para dos autos lado a lado; se arma una sola fila')
+    return RS.placeAll(n, len, false)
+  end
+  return moved
+end
+
 -- Offline, salida corta: los autos van a la fila apenas carga la carrera, durante la cuenta regresiva,
 -- y el jugador espera las luces ahi con los controles bloqueados. Asi nadie aparece en la grilla.
 function RS.preStart(sim, car, n)
@@ -1877,11 +1919,10 @@ function RS.preStart(sim, car, n)
   if not S.prePlaced then
     S.prePlaced = true
     S.preFixes, S.preFixAt = 0, clock
-    local moved = 0
-    for i = 0, n - 1 do
-      if ac.getCar(i) and placeInFormation(i, startSlot(i, n), len) then moved = moved + 1 end
-    end
-    addLog(string.format('Cuenta regresiva: %d de %d autos llevados a la fila', moved, n))
+    FORM2.single = nil
+    local moved = RS.placeAll(n, len, false)
+    addLog(string.format('Cuenta regresiva: %d de %d autos llevados a la fila (%s)', moved, n,
+      (cfg.formTwoWide and not FORM2.single) and 'dos filas' or 'una fila'))
     S.preLock = true
     pcall(function () physics.setCarNoInput(true) end)
   elseif S.preFixes >= 5 and S.preLock then
@@ -1912,8 +1953,9 @@ function RS.aiFollow(dt, f, n)
   f.capT = 0
   f.cap, f.freed, f.prevSp, f.crossed = f.cap or {}, f.freed or {}, f.prevSp or {}, f.crossed or {}
   local pending = 0
-  local two = f.short and cfg.formTwoWide
+  local two = f.short and cfg.formTwoWide and not FORM2.single
   local mySlot = f.grid or 1
+  local stuck, front = false, false
   for p, i in ipairs(f.order) do
     local c = i ~= 0 and not f.freed[i] and ac.getCar(i) or nil
     if c then
@@ -1939,6 +1981,11 @@ function RS.aiFollow(dt, f, n)
         pcall(function () physics.setAITopSpeed(i, math.huge) end)
       else
         pending = pending + 1
+        -- el primero de la IA en la fila: si no se mueve y nada lo frena, esta detenido
+        if not front and f.phase == 'formation' then
+          front = true
+          stuck = c.speedKmh < 2 and (not a or a.speedKmh > 5)
+        end
         -- antes de la verde nadie pasa del limite; despues, el techo es el auto de delante
         local top = f.phase == 'formation' and cfg.formSpeed or 400
         local cap = top
@@ -1959,6 +2006,47 @@ function RS.aiFollow(dt, f, n)
     end
   end
   if pending == 0 then f.aiCapped = false end
+  if f.phase == 'formation' then RS.watch(f, n, stuck) end
+end
+
+-- Si la IA no arranca en la formacion: primero se la despierta, despues (en fila doble) se arma una sola
+-- fila y, si aun asi no se mueve, se le quita el limite. Todo queda en el registro para poder revisarlo.
+function RS.watch(f, n, stuck)
+  if not f.short or clock - f.startAt < 1.5 then return end
+  f.stillT = stuck and (f.stillT or 0) + 0.2 or 0
+  if f.stillT < 2 then return end
+  f.stillT = 0
+  f.wakes = (f.wakes or 0) + 1
+  local parts = {}
+  for p = 1, math.min(#f.order, 4) do
+    local i = f.order[p]
+    local c = ac.getCar(i)
+    if c then
+      parts[#parts + 1] = string.format('auto %d: %.0f km/h, limite %s', i, c.speedKmh, tostring(f.cap[i] or '-'))
+    end
+  end
+  addLog('Formacion: la IA no arranca (' .. table.concat(parts, '; ') .. ')')
+  if f.wakes == 1 then
+    for _, i in ipairs(f.order) do
+      if i ~= 0 then pcall(physics.awakeCar, i) end
+    end
+    f.cap = {}
+    addLog('Formacion: se despierta a la IA')
+  elseif f.wakes == 2 and cfg.formTwoWide and not FORM2.single then
+    FORM2.single = true
+    RS.placeAll(n, trackLen(ac.getSim()), false)
+    f.startAt, f.mid, f.cap = clock, {}, {}
+    addLog('Formacion: la IA sigue detenida en la fila doble; se arma una sola fila')
+    note(1, tr('La IA no arrancó en dos filas: se larga en una sola fila'), 1, false)
+  elseif f.wakes <= 3 then
+    for _, i in ipairs(f.order) do
+      if i ~= 0 then
+        f.freed[i] = true
+        pcall(function () physics.setAITopSpeed(i, math.huge) end)
+      end
+    end
+    addLog('Formacion: la IA sigue detenida; se le quita el limite de velocidad')
+  end
 end
 
 local function updateRolling(dt, sim, car, n)
@@ -1999,14 +2087,8 @@ local function updateRolling(dt, sim, car, n)
     end
     if f.short and not online then
       -- offline la app misma lleva los autos a la fila (online lo hace el script del servidor)
-      local len = trackLen(sim)
-      for i = 0, n - 1 do
-        local c = ac.getCar(i)
-        local want = c and RS.slotSpline(startSlot(i, n), len)
-        if c and not (S.prePlaced and math.abs(c.splinePosition - want) * len < 8) then
-          placeInFormation(i, startSlot(i, n), len)
-        end
-      end
+      if not S.prePlaced then FORM2.single = nil end
+      RS.placeAll(n, trackLen(sim), S.prePlaced)
     end
     if f.short then
       announce(1, tr('SALIDA LANZADA'),
@@ -2036,7 +2118,8 @@ local function updateRolling(dt, sim, car, n)
         elseif sp > 0.4 and sp < 0.7 then
           f.mid[i] = true
         end
-        if c.lapCount >= 1 or (f.mid[i] and (sp < 0.15 or early)) then leaderCrossed = true end
+        local rolling = c.speedKmh > 5 and not c.isInPitlane and not c.isInPit
+        if rolling and (c.lapCount >= 1 or (f.mid[i] and (sp < 0.15 or early))) then leaderCrossed = true end
       end
     end
     -- salida corta: si a los 3 segundos este auto no esta en la fila, nadie lo movio (no hay script del servidor
@@ -4340,6 +4423,7 @@ EN['Salida corta'] = 'Short start'
 EN['Los autos parten en fila cerca del final de la vuelta, sin dar la vuelta de formación completa. Online necesita el script del servidor.'] = 'The cars start in line near the end of the lap, without a full formation lap. Online it needs the server script.'
 EN['El primero parte a'] = 'The leader starts'
 EN['Dos filas'] = 'Two rows'
+EN['La IA no arrancó en dos filas: se larga en una sola fila'] = 'The AI did not pull away two by two: starting in a single line'
 EN['Los autos parten de a dos, uno al lado del otro y en el orden de la grilla. Vale offline; online lo decide el script del servidor (twoWide). La IA tiende a ponerse en una sola fila al avanzar.'] = 'Cars start two by two, side by side and in grid order. Applies offline; online the server script decides (twoWide). The AI tends to fall into a single line once moving.'
 EN['%.0f m de la meta'] = '%.0f m from the line'
 EN['Bandera verde'] = 'Green flag'

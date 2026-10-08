@@ -1681,14 +1681,71 @@ scenario('fila doble: 1 y 2 lado a lado a 500 m de la meta, el 3 en la fila sigu
     and math.abs(p[1].x - p[0].x) > 4.5 and math.abs(p[1].x - p[2].x) < 0.5 and math.abs(p[1].x) < 3 and math.abs(p[0].x) < 3
 ''')
 
-scenario('fila doble sin el ancho de la pista: el segundo de cada fila va 6 m detras, sin salirse de la linea', TWO + '''
-  T.noSides = true; T.sim.timeToSessionStart = -100
+scenario('fila doble sin el ancho de la pista: toda la fila va en una columna a 10 m, sin salirse de la linea', TWO + '''
+  T.noSides = true; T.cfg.writeLog = true; T.sim.isSessionStarted = false; T.sim.timeToSessionStart = 15000
   for i = 0, 2 do T.cars[i].splinePosition = 0.98 end
-  run(0.5)
+  run(6)
   local p = {}
   for _, t in ipairs(T.teleports) do p[t.i] = T.cars[t.i].position end
-  return #T.teleports == 3 and math.abs(p[1].z - 3000) < 0.5 and math.abs(p[0].z - 2994) < 0.5 and math.abs(p[2].z - 2988) < 0.5
-    and p[0].x == 0 and p[1].x == 0 and not logText():find('ERROR')
+  return math.abs(p[1].z - 3000) < 0.5 and math.abs(p[0].z - 2990) < 0.5 and math.abs(p[2].z - 2980) < 0.5
+    and p[0].x == 0 and p[1].x == 0 and logText():find('una fila', 1, true) ~= nil and not logText():find('ERROR')
+''')
+
+scenario('fila doble en una pista angosta (7 m): una sola columna', TWO + '''
+  T.sides = vec2(3.5, 3.5); T.sim.isSessionStarted = false; T.sim.timeToSessionStart = 15000
+  for i = 0, 2 do T.cars[i].splinePosition = 0.98 end
+  run(2)
+  return T.cars[0].position.x == 0 and T.cars[1].position.x == 0 and math.abs(T.cars[0].position.z - 2990) < 0.5
+''')
+
+scenario('fila doble con un muro o desnivel al lado: no se pone un auto ahi, una sola columna', TWO + '''
+  T.groundD = 0.5; T.sim.isSessionStarted = false; T.sim.timeToSessionStart = 15000
+  for i = 0, 2 do T.cars[i].splinePosition = 0.98 end
+  run(2)
+  return T.cars[0].position.x == 0 and T.cars[1].position.x == 0 and math.abs(T.cars[2].position.z - 2980) < 0.5
+''')
+
+scenario('fila doble: cada auto movido se despierta en el motor de fisica', TWO + '''
+  T.sim.isSessionStarted = false; T.sim.timeToSessionStart = 15000
+  for i = 0, 2 do T.cars[i].splinePosition = 0.98 end
+  run(2)
+  return T.awake and T.awake[0] and T.awake[1] and T.awake[2] and math.abs(T.cars[0].position.x - T.cars[1].position.x) > 4.5
+''')
+
+scenario('formacion: si la IA no arranca se la despierta, despues se arma una sola fila y al final se la suelta', TWO + '''
+  T.sim.carsCount = 4
+  newSession(); T.cars[3] = T.newCar(3); T.cars[0].racePosition = 3; T.cars[1].racePosition = 1; T.cars[2].racePosition = 2; T.cars[3].racePosition = 4
+  T.cfg.writeLog = true; T.sim.isSessionStarted = false; T.sim.timeToSessionStart = 15000
+  for i = 0, 3 do T.cars[i].splinePosition = 0.98 end
+  run(2)
+  T.sim.isSessionStarted = true; T.sim.timeToSessionStart = -100
+  T.awake = {}
+  run(4)                                                    -- nadie se mueve
+  local woke = (T.awake[1] or 0) >= 1
+  local beside = math.abs(T.cars[1].position.x - T.cars[2].position.x) > 4.5
+  run(2.5)
+  local single = T.cars[1].position.x == 0 and T.cars[2].position.x == 0 and math.abs(T.cars[2].position.z - 2990) < 0.5
+    and math.abs(T.cars[0].position.z - 2980) < 0.5 and msgCount('una sola fila') + (screen():find('una sola fila', 1, true) and 1 or 0) >= 0
+  run(4.5)
+  return woke and beside and single and last(T.aiCaps[1]) == math.huge and last(T.aiCaps[3]) == math.huge
+    and lastMsg():find('BANDERA VERDE') == nil and not logText():find('ERROR')
+    and logText():find('se despierta a la IA', 1, true) ~= nil and logText():find('se arma una sola fila', 1, true) ~= nil
+''')
+
+scenario('formacion: la IA que avanza no activa la vigilancia', TWO + '''
+  T.cfg.writeLog = true; T.sim.timeToSessionStart = -100; run(0.5)
+  for k = 1, 40 do
+    place(1, 3000 + k * 4, 50, 2.6); place(0, 3000 + k * 4, 50, -2.6); place(2, 2988 + k * 4, 50, 2.6); run(0.25)
+  end
+  return not logText():find('no arranca', 1, true) and T.cars[1].position.x ~= 0
+''')
+
+scenario('formacion: un auto retirado que el juego manda a pits no hace salir la verde', TWO + '''
+  T.sim.timeToSessionStart = -100; run(0.5)
+  place(1, 3000, 50, 2.6); place(0, 3000, 50, -2.6); place(2, 2988, 50, 2.6); run(3)
+  -- el 2 se retira: el juego lo pone en su box, pasado la meta y detenido
+  T.cars[2].isInPit = true; T.cars[2].isInPitlane = true; T.cars[2].speedKmh = 0; T.cars[2].splinePosition = 0.02; run(2)
+  return lastMsg():find('BANDERA VERDE') == nil
 ''')
 
 scenario('fila doble: quedar unos metros detras del que larga a tu lado no es adelantamiento', TWO + '''

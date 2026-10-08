@@ -116,7 +116,7 @@ ac.trackProgressToWorldCoordinate = function (v) return vec3(0, 0, (v - 0.3) * 5
 -- ancho de la pista a cada lado de la linea de la IA: 6 m y 6 m (T.noSides simula un juego que no lo informa)
 ac.getTrackAISplineSides = function (v)
   if T.noSides then error('sin datos') end
-  return vec2(6, 6)
+  return T.sides or vec2(6, 6)
 end
 physics = {
   setCarPosition = function (i, pos, dir)
@@ -128,6 +128,10 @@ physics = {
     T.teleports[#T.teleports + 1] = { i = i, z = pos.z, dir = dir }
   end,
   setCarNoInput = function (v) T.noInput = v; T.noInputCalls = (T.noInputCalls or 0) + 1 end,
+  -- auto despertado en el motor de fisica
+  awakeCar = function (i) T.awake = T.awake or {}; T.awake[i] = (T.awake[i] or 0) + 1 end,
+  -- rayo hacia abajo: el suelo es plano salvo que la prueba ponga T.groundD (distancia que devuelve el rayo)
+  raycastTrack = function (pos, dir, dist) return T.groundD or 3 end,
   teleportCarTo = function (i, set)
     if T.pitTeleportFail then error('no permitido') end
     T.cars[i].isInPitlane = true; T.cars[i].speedKmh = 0
