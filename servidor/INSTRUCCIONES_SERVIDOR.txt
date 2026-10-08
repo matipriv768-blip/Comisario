@@ -1,111 +1,118 @@
 COMISARIO SERVIDOR 1.10
-Como imponer la salida lanzada desde el servidor
+Script online para el servidor (opcional)
 
 QUE HACE
-El servidor le envia el archivo comisario_servidor.lua a cada piloto al
-conectarse. Nadie tiene que instalarlo. Durante la vuelta de formacion, el auto
-de cada piloto no puede pasar de la velocidad fijada: al superarla, el juego
-suelta el acelerador por el, como un limitador de pits. Cuando el primer auto
-llega a la meta sale la bandera verde y el limite desaparece.
-Solo necesitan tener Custom Shaders Patch. Si ademas tienen la app Comisario,
-esta muestra la formacion en sus indicadores y vigila los adelantamientos.
+El servidor le envia este script a cada piloto al conectarse: nadie tiene que
+instalarlo. Con el script puesto:
+- En la salida lanzada, el auto no puede pasar de la velocidad de formacion (el
+  juego suelta el acelerador, como un limitador de pits). La verde sale cuando
+  el primero llega a la meta.
+- En la salida lanzada corta, cada auto es llevado a su lugar en la fila apenas
+  carga la carrera y espera las luces ahi.
+- Hace cumplir la amarilla total y la bandera roja que decreta el director.
+- Manda a pits al piloto descalificado por la app, con el auto sin controles.
+- Guarda la clave de administrador.
+Cada piloto necesita Custom Shaders Patch y, para casi todo lo anterior, la app
+Comisario instalada.
 
-Desde la version 1.2 tambien hace cumplir la amarilla total y la bandera roja
-que decreta el director de carrera en la app: mientras duren, corta el
-acelerador sobre la velocidad fijada. Para esto el piloto si necesita la app.
+RESUMEN: LO QUE HAY QUE HACER CADA VEZ QUE ARMAS UN SERVIDOR
+El bloque del PASO 2 va en las opciones de cada preset de servidor de Content
+Manager. Si creas un preset nuevo, hay que pegarlo de nuevo en ese preset.
+Y antes de pegarlo, cambia 'tuclave' por tu propia clave de administrador.
 
-PASO 1: SUBIR EL ARCHIVO A INTERNET
-El servidor no puede enviar el archivo directamente: tiene que estar en una
-direccion web. La forma gratuita mas simple es un "gist" de GitHub.
+PASO 1: CONSEGUIR LA DIRECCION WEB DEL SCRIPT
+El servidor no envia el archivo desde tu PC: lo descarga de una direccion web.
+Hay dos formas.
+
+A) Usar tu propio gist (probado):
 1. Crea una cuenta gratis en https://github.com (si no tienes).
 2. Entra a https://gist.github.com
 3. En "Filename including extension" escribe: comisario_servidor.lua
 4. Abre comisario_servidor.lua con el Bloc de notas, copia todo y pegalo en
    el cuadro grande.
-5. Pulsa el boton verde "Create secret gist" (o "Create public gist").
-6. En la pagina que se abre, pulsa el boton "Raw" arriba a la derecha del codigo.
-7. Copia la direccion completa que queda en el navegador. Empieza con
-   https://gist.githubusercontent.com/ y termina en comisario_servidor.lua
+5. Pulsa "Create secret gist" (o "Create public gist").
+6. Pulsa el boton "Raw" arriba a la derecha del codigo y copia la direccion del
+   navegador. Tiene esta forma:
+   https://gist.githubusercontent.com/TU_USUARIO/CODIGO/raw/UN_CODIGO_LARGO/comisario_servidor.lua
+7. Borra el codigo largo que va despues de /raw/ para que quede asi:
+   https://gist.githubusercontent.com/TU_USUARIO/CODIGO/raw/comisario_servidor.lua
+   Con el codigo largo, la direccion queda amarrada a esa version del archivo
+   aunque despues edites el gist. Sin el, siempre entrega la ultima.
 
-PASO 2: PONERLO EN EL SERVIDOR DE CONTENT MANAGER
-1. Abre tu preset de servidor en Content Manager.
-2. Busca el cuadro de texto de las opciones extra de Custom Shaders Patch
-   (en ingles suele decir "CSP extra options" o "Extra options").
-3. Pega esto, cambiando la direccion por la que copiaste:
+B) Usar el archivo de este repositorio (mas rapido, todavia sin probar en un
+   servidor real):
+   https://raw.githubusercontent.com/matipriv768-blip/Comisario/main/servidor/comisario_servidor.lua
+   Entrega siempre la ultima version publicada aqui. Si al entrar al servidor no
+   aparece el mensaje "COMISARIO SERVIDOR", usa la forma A.
+
+PASO 2: PEGAR EL BLOQUE EN EL SERVIDOR (CONTENT MANAGER)
+1. En Content Manager entra a Server y abre tu preset.
+2. En la pestana MAIN busca la seccion "Custom Shaders Patch" y marca
+   "Require CSP to join" (sin esto no aparece el cuadro de opciones).
+3. Pulsa "Extra options" y pega este bloque, con dos cambios:
+   - en SCRIPT, la direccion del PASO 1, entre comillas simples;
+   - en adminPass, tu clave en vez de tuclave.
 
 [SCRIPT_...]
 SCRIPT = 'https://gist.githubusercontent.com/TU_USUARIO/CODIGO/raw/comisario_servidor.lua'
 rollingStart = 1
 formationSpeed = 100
 greenMeters = 100
+startMeters = 500
+adminPass = 'tuclave'
+requireApp = 1
 
-   Ojo con la direccion: la que copia el boton "Raw" trae un codigo largo
-   despues de /raw/ y queda amarrada a esa version del archivo. Borra ese
-   codigo (deja /raw/comisario_servidor.lua) y la direccion siempre entregara
-   la ultima version que guardes en el gist.
-4. Guarda el preset y reinicia el servidor.
-5. Suma una vuelta al total de la carrera: el juego cuenta la vuelta de
-   formacion como vuelta de carrera.
+4. Guarda el preset y arranca (o reinicia) el servidor.
+5. En tu app Comisario: engranaje > Inicio > Clave de administrador, escribe la
+   misma clave. Desde ese momento tu reglamento, tu tipo de salida y tus
+   banderas valen para todos. No le des la clave a los demas pilotos.
 
-AJUSTES
-rollingStart = 1      salida lanzada. Con 0, salida parada normal. Solo vale para
-                      quien no tenga la app Comisario: con la app, manda el tipo
-                      de salida elegido en ella (pestana Carrera) o el del
-                      director de carrera.
-lockStart = 0         con 1, el servidor impone rollingStart a todos y la app no
-                      puede cambiarlo. Esta linea es opcional.
-formationSpeed = 100  velocidad maxima en la formacion, en km/h (entre 40 y 250).
-                      Solo vale para quien no tenga la app Comisario. Con la app,
-                      manda la velocidad puesta en ella (pestana Carrera) o la
-                      del director de carrera.
+Si no quieres administrador, borra la linea adminPass. Si no quieres obligar a
+tener la app, borra la linea requireApp (o pon 0).
 
-greenMeters = 100     la bandera verde sale cuando al lider le faltan estos
-                      metros para la meta (0 = justo en la meta). Igual que la
-                      velocidad: con la app, manda lo puesto en ella.
+QUE SIGNIFICA CADA LINEA
+rollingStart = 1      salida lanzada (0 = salida parada). Si el piloto tiene la
+                      app, manda lo elegido en ella (engranaje > Largada) o lo
+                      del administrador.
+lockStart = 1         opcional: el servidor impone rollingStart y la app no
+                      puede cambiarlo. Sin la linea, decide la app.
+formationSpeed = 100  velocidad maxima antes de la verde, en km/h. Con la app,
+                      manda la velocidad puesta en ella.
+greenMeters = 100     la verde sale cuando al lider le faltan estos metros para
+                      la meta (0 = en la meta). Con la app, manda lo de la app.
+startMeters = 500     salida lanzada corta: el primero parte a estos metros de
+                      la meta y el resto en fila detras, a 10 m. Con 0 se da la
+                      vuelta de formacion completa (en ese caso suma una vuelta
+                      a la carrera: el juego la cuenta).
+adminPass = 'clave'   clave de administrador. Entre comillas simples, sin tildes
+                      ni espacios.
+requireApp = 1        quien entre sin la app Comisario activa no pasa de 60 km/h
+                      (se dan 30 segundos al entrar para que cargue).
+language = 'en'       opcional: los mensajes de este script salen en ingles.
+                      El idioma de la app lo elige cada piloto en sus ajustes.
 
-startMeters = 500     salida lanzada corta: al largar, cada auto es llevado a la
-                      ultima parte de la pista, en fila; el primero queda a
-                      estos metros de la meta. Con 0 (o sin la linea) se da la
-                      vuelta de formacion completa. Con la app, manda lo
-                      elegido en ella (pestana Carrera).
-adminPass = 'clave'   clave de administrador. Esta linea es opcional. Si la pones,
-                      solo quien escriba la misma clave en su app Comisario
-                      (engranaje > Reglamento) puede fijar el reglamento, el tipo
-                      de salida y las banderas. Los demas pilotos no pueden
-                      cambiarlos ni apagar el comisario. Va entre comillas
-                      simples, sin tildes ni espacios. No la compartas.
-requireApp = 1        opcional. Quien entre sin la app Comisario activa no pasa
-                      de 60 km/h (se dan 30 segundos al entrar para que cargue).
-
-Con el script puesto, un piloto descalificado por la app es enviado a pits y
-su auto queda sin controles hasta que termine la sesion.
+AJUSTE RECOMENDADO DEL SERVIDOR
+En la pestana RULES del preset, deja la sancion por salida en falso en "auto
+bloqueado hasta la largada" (car locked). Con la salida lanzada corta los autos
+se mueven a la fila durante la cuenta regresiva, y con las otras opciones no
+esta probado.
 
 ACTUALIZAR EL SCRIPT
-Entra a tu gist, pulsa "Edit", reemplaza todo el contenido por el archivo nuevo
-y pulsa "Update secret gist". Despues reinicia el servidor.
+Con la forma A: entra a tu gist, pulsa "Edit", reemplaza todo el contenido por
+el archivo nuevo y pulsa "Update". Si en SCRIPT usaste la direccion sin el
+codigo largo, no hay que tocar Content Manager; solo reinicia el servidor.
+Con la forma B: se actualiza solo cuando se publica una version nueva aqui.
 
 COMO SABER SI FUNCIONA
-Al largar la carrera aparece el mensaje "VUELTA DE FORMACION" y, si aceleras a
-fondo, el auto no pasa de la velocidad fijada. En la app Comisario, el panel
-dice "enlazado con el script del servidor" (o "salida impuesta por el
-servidor" si pusiste lockStart = 1).
+- Al entrar al servidor (en practica) aparece arriba "COMISARIO SERVIDOR 1.10".
+  Si no aparece o sale un numero menor, el servidor esta entregando un script
+  antiguo: revisa la direccion de SCRIPT.
+- En la ventana Comisario, el panel dice "enlazado con el script del servidor".
+- Al largar aparece "SALIDA LANZADA" y, si aceleras a fondo, el auto no pasa de
+  la velocidad fijada.
 
 SI NO FUNCIONA
-- Revisa que la direccion sea la del boton "Raw" y que este entre comillas simples.
-- El script necesita una version reciente de Custom Shaders Patch en cada piloto.
-- Sin este script la salida lanzada sigue existiendo: el director de carrera la
-  elige en la app (engranaje > Carrera) y se controla con avisos y sanciones.
-
-COMO SABER QUE VERSION ESTA CARGADA
-- Al entrar al servidor (en practica o clasificacion) aparece arriba el mensaje
-  "COMISARIO SERVIDOR 1.10". Si no aparece, el servidor sigue entregando un
-  script antiguo: revisa la direccion de SCRIPT en Extra options.
-- La direccion con un codigo largo despues de /raw/ queda fija en la version
-  que tenia el gist ese dia, aunque despues edites el gist.
-
-IDIOMA DE LOS MENSAJES
-Los mensajes grandes que muestra este script salen en espanol. Para verlos en
-ingles agrega esta linea al bloque de Extra options:
-language = 'en'
-El idioma de la app (ajustes, avisos e indicadores) lo elige cada piloto en los
-ajustes de la app.
+- Revisa que la direccion este entre comillas simples y sin espacios.
+- Revisa que "Require CSP to join" este marcado.
+- Sin el script, la app igual funciona: avisa y sanciona, pero no puede frenar
+  el auto ni moverlo a la fila.

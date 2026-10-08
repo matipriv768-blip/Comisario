@@ -52,7 +52,20 @@ El engranaje de la ventana abre los ajustes. Arriba se elige el idioma (español
 
 ## Servidor (opcional)
 
-`servidor/comisario_servidor.lua` es un script online que el servidor reparte a cada piloto. Hace cumplir cortando el acelerador la velocidad de la formación, de la amarilla total y de la bandera roja. En la salida corta lleva cada auto a su lugar en la fila, y manda a pits al descalificado, con el auto sin controles. También guarda la clave de administrador. Los pasos están en [`servidor/INSTRUCCIONES_SERVIDOR.txt`](servidor/INSTRUCCIONES_SERVIDOR.txt).
+`servidor/comisario_servidor.lua` es un script online que el servidor reparte a cada piloto. Hace cumplir cortando el acelerador la velocidad de la formación, de la amarilla total y de la bandera roja. En la salida corta lleva cada auto a su lugar en la fila, y manda a pits al descalificado, con el auto sin controles. También guarda la clave de administrador. Se activa pegando este bloque en las opciones extra de CSP de cada preset de servidor en Content Manager (MAIN > Custom Shaders Patch > marcar "Require CSP to join" > Extra options). Antes de pegarlo, cambia `tuclave` por tu propia clave de administrador y escribe la misma clave en la app (engranaje > Inicio):
+
+```
+[SCRIPT_...]
+SCRIPT = 'https://gist.githubusercontent.com/TU_USUARIO/CODIGO/raw/comisario_servidor.lua'
+rollingStart = 1
+formationSpeed = 100
+greenMeters = 100
+startMeters = 500
+adminPass = 'tuclave'
+requireApp = 1
+```
+
+`SCRIPT` es la dirección web del archivo: cómo obtenerla y qué hace cada línea está en [`servidor/INSTRUCCIONES_SERVIDOR.txt`](servidor/INSTRUCCIONES_SERVIDOR.txt).
 
 Sin el script, todo lo demás funciona igual: la app avisa y sanciona.
 

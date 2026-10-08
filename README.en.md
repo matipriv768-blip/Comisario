@@ -37,7 +37,21 @@ Manual install: copy the `apps` folder into the game's `assettocorsa` folder.
 
 ## Server script (optional)
 
-`servidor/comisario_servidor.lua` is an online script that the server hands to each driver. It enforces things by cutting the throttle: the formation speed, full course yellow and red flag speeds, and it sends a disqualified driver to the pits. Add `language = 'en'` to its options for English messages. Step by step instructions (in Spanish): [`servidor/INSTRUCCIONES_SERVIDOR.txt`](servidor/INSTRUCCIONES_SERVIDOR.txt).
+`servidor/comisario_servidor.lua` is an online script that the server hands to each driver. It enforces things by cutting the throttle: the formation speed, full course yellow and red flag speeds, and it sends a disqualified driver to the pits. It is enabled by pasting this block into the CSP extra options of each server preset in Content Manager (MAIN > Custom Shaders Patch > tick "Require CSP to join" > Extra options). Before pasting it, replace `yourkey` with your own administrator key and type the same key in the app (gear > Home):
+
+```
+[SCRIPT_...]
+SCRIPT = 'https://gist.githubusercontent.com/YOUR_USER/CODE/raw/comisario_servidor.lua'
+rollingStart = 1
+formationSpeed = 100
+greenMeters = 100
+startMeters = 500
+adminPass = 'yourkey'
+requireApp = 1
+language = 'en'
+```
+
+`SCRIPT` is the web address of the file. Step by step instructions (in Spanish): [`servidor/INSTRUCCIONES_SERVIDOR.txt`](servidor/INSTRUCCIONES_SERVIDOR.txt).
 
 ## Project status and known limits
 

@@ -84,7 +84,7 @@ decreta vale para todos los que tengan la app.
 - Con el script del servidor 1.9 o posterior, el juego ademas corta el acelerador sobre esa
   velocidad. Contra la IA, se le baja la velocidad si la pista lo permite.
 
-SALIDA (pestana Carrera)
+SALIDA (pestana Largada)
 - Parada: la normal del juego, con control de salida en falso.
 - Lanzada: la primera vuelta es de formacion. Hay que mantener el puesto y no
   pasar de la velocidad fijada (100 km/h). Cuando al lider le faltan 100 metros
@@ -94,7 +94,7 @@ SALIDA (pestana Carrera)
   El juego cuenta esa vuelta como vuelta de carrera: suma una al total.
   Contra la IA solo funciona en pistas autorizadas para controlarla.
 
-SALIDA LANZADA CORTA (pestana Carrera)
+SALIDA LANZADA CORTA (pestana Largada)
 En vez de dar la vuelta de formacion completa, apenas larga la carrera cada
 auto es llevado a la ultima parte de la pista, en fila y en el orden de la
 grilla: el primero a 500 metros de la meta (ajustable) y los demas cada 10
@@ -120,13 +120,13 @@ acelerador sobre la velocidad fijada en la vuelta de formacion y durante la
 amarilla total o la bandera roja. Las instrucciones estan en el archivo
 INSTRUCCIONES_SERVIDOR.txt.
 El tipo de salida (parada o lanzada), la velocidad de la formacion y los metros
-de la bandera verde se eligen en la app, pestana Carrera; si hay director de
+de la bandera verde se eligen en la app, pestana Largada; si hay director de
 carrera, valen los suyos para todos. Quien no tenga la app usa los valores
 escritos en el servidor. Si el servidor tiene lockStart = 1, el tipo de salida
 lo decide el servidor y la app no puede cambiarlo.
 Sin el script, la salida lanzada sigue funcionando con avisos y sanciones.
 
-DEVOLVER LA POSICION (pestana Carrera)
+DEVOLVER LA POSICION (pestana Contactos)
 Si ganas un puesto con un contacto evitable, o adelantas por fuera de la pista,
 el comisario te pide devolverlo y te da 20 segundos. Si dejas pasar al otro,
 no hay sancion. Si no, drive-through (o la sancion que elijas).
@@ -183,7 +183,7 @@ pulsa "Deshacer el cambio en esta pista". Con el archivo cambiado, el servidor
 rechaza a quienes tengan la pista original.
 - Administrador: si el servidor tiene clave (adminPass en sus opciones, ver
   INSTRUCCIONES_SERVIDOR.txt), solo quien escriba esa clave en engranaje >
-  Reglamento es el administrador. Los demas no pueden marcarse director,
+  Inicio > Clave de administrador es el administrador. Los demas no pueden marcarse director,
   cambiar el reglamento, decretar banderas ni apagar el comisario: corren con
   el reglamento del administrador (o con el por defecto, si aun no entra).
 Limites: como cada app juzga a su propio auto, alguien que sepa programar podria
