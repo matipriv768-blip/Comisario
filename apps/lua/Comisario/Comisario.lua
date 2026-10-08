@@ -1,6 +1,6 @@
 --[[
   COMISARIO  -  comisario de carrera para Assetto Corsa (app Lua de Custom Shaders Patch)
-  Version 1.5.1  -  offline (contra la IA) y online (con amigos que tengan la app)
+  Version 1.5.2  -  offline (contra la IA) y online (con amigos que tengan la app)
 
   Que hace:
     1. Limites de pista, velocidad en pits y salida en falso.
@@ -22,7 +22,7 @@
   Codigo propio, escrito desde cero. No usa codigo ni archivos de otros plugins.
 ]]
 
-local VERSION = '1.5.1'
+local VERSION = '1.5.2'
 
 -- ---------------------------------------------------------------------------
 -- 1. AJUSTES (se guardan solos entre sesiones)
@@ -1841,11 +1841,18 @@ function RS.preStart(sim, car, n)
   if not S.prePlaced then
     S.prePlaced = true
     S.preFixes, S.preFixAt = 0, clock
+    local moved = 0
     for i = 0, n - 1 do
-      if ac.getCar(i) then placeInFormation(i, startSlot(i, n), len) end
+      if ac.getCar(i) and placeInFormation(i, startSlot(i, n), len) then moved = moved + 1 end
     end
+    addLog(string.format('Cuenta regresiva: %d de %d autos llevados a la fila', moved, n))
     S.preLock = true
     pcall(function () physics.setCarNoInput(true) end)
+  elseif S.preFixes >= 5 and S.preLock then
+    -- el juego los sigue devolviendo a la grilla: se espera a las luces y se hace al largar
+    addLog('Cuenta regresiva: el juego mantiene los autos en la grilla; se llevan a la fila al largar')
+    S.preLock = false
+    pcall(function () physics.setCarNoInput(false) end)
   elseif S.preFixes < 5 and clock - S.preFixAt > 2 then
     -- si el juego devolvio algun auto a la grilla, se le vuelve a poner en la fila (pocas veces)
     S.preFixAt = clock
@@ -1860,7 +1867,8 @@ function RS.preStart(sim, car, n)
 end
 
 -- Offline: cada auto de la IA anda a la velocidad del que tiene delante en la fila, para que nadie adelante
--- antes de la largada. Despues de la verde, cada uno queda libre recien al cruzar la meta.
+-- antes de la largada. Con la verde todos aceleran, pero cada uno sigue sin poder pasar al de delante hasta
+-- cruzar la meta: recien ahi queda libre. El primero de la fila queda libre con la verde.
 function RS.aiFollow(dt, f, n)
   if not f.aiCapped or not f.order then return end
   f.capT = (f.capT or 0) + dt
@@ -1878,8 +1886,9 @@ function RS.aiFollow(dt, f, n)
       if c.lapCount > (f.lap0[i] or 0) then f.crossed[i] = true end
       f.prevSp[i] = c.splinePosition
       local free = false
+      local a = f.order[p - 1] and ac.getCar(f.order[p - 1]) or nil
       if f.phase ~= 'formation' then
-        if f.crossed[i] then free = true end
+        if f.crossed[i] or not a then free = true end
         if f.greenAt and clock - f.greenAt > 40 then free = true end
       end
       if free then
@@ -1887,14 +1896,15 @@ function RS.aiFollow(dt, f, n)
         pcall(function () physics.setAITopSpeed(i, math.huge) end)
       else
         pending = pending + 1
-        local cap = cfg.formSpeed
-        local a = f.order[p - 1] and ac.getCar(f.order[p - 1]) or nil
+        -- antes de la verde nadie pasa del limite; despues, el techo es el auto de delante
+        local top = f.phase == 'formation' and cfg.formSpeed or 400
+        local cap = top
         if a and not a.isInPitlane then
           local gap = metersAhead(a, c)
           if gap < 0 and gap > -60 then
             cap = 30                -- se adelanto: frena hasta que el otro vuelva a quedar delante
           elseif gap >= 0 and gap < 40 then
-            cap = math.max(15, math.min(cfg.formSpeed, a.speedKmh + (gap - 14) * 1.5))
+            cap = math.max(15, math.min(top, a.speedKmh + (gap - 14) * 1.5))
           end
         end
         if not f.cap[i] or math.abs(f.cap[i] - cap) > 1 then

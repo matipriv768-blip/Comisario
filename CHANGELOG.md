@@ -1,5 +1,9 @@
 # Cambios
 
+## 1.5.2
+- Corregido: offline, con la bandera verde la IA de delante seguía limitada hasta cruzar la meta, y al acelerar quedabas obligado a pasarla (y a devolver el puesto). Ahora con la verde todos aceleran; cada auto de la IA sigue sin poder pasar al de delante hasta la meta, y el primero de la fila queda libre de inmediato.
+- El registro anota si el juego deja mover los autos a la fila durante la cuenta regresiva. Si no lo deja, se espera a las luces sin dejar los controles bloqueados.
+
 ## 1.5.1
 - Offline, salida corta: los autos van a la fila durante la cuenta regresiva, igual que online. Antes aparecían en la grilla y saltaban a la fila al apagarse las luces.
 - Offline, formación: cada auto de la IA anda al ritmo del que tiene delante, así nadie adelanta antes de la largada. Si alguno se adelanta, frena hasta que el otro vuelva a quedar delante.

@@ -1612,11 +1612,23 @@ scenario('offline, salida corta: despues de la verde la IA sigue limitada hasta 
   T.sim.timeToSessionStart = -100; run(0.5)
   place(1, 3300, 100); place(0, 3290, 100); place(2, 3280, 100); run(2)
   place(1, 3420, 100); place(0, 3410, 100); place(2, 3400, 100); run(0.5)
-  local green = lastMsg():find('BANDERA VERDE') ~= nil and last(T.aiCaps[1]) ~= math.huge and last(T.aiCaps[2]) ~= math.huge
-  T.cars[1].splinePosition = 0.01; run(0.5)               -- el primero cruza la meta
-  local first = last(T.aiCaps[1]) == math.huge and last(T.aiCaps[2]) ~= math.huge
+  -- con la verde el primero de la fila queda libre; el de atras sigue sin poder pasarte hasta la meta
+  local green = lastMsg():find('BANDERA VERDE') ~= nil and last(T.aiCaps[1]) == math.huge and last(T.aiCaps[2]) < 100
   T.cars[2].splinePosition = 0.995; run(0.3); T.cars[2].splinePosition = 0.005; run(0.5)
-  return green and first and last(T.aiCaps[2]) == math.huge
+  return green and last(T.aiCaps[2]) == math.huge
+''')
+
+scenario('offline, salida corta: con la verde la IA de delante acelera junto contigo y no te obliga a pasarla antes de la meta', SHORT_AI + '''
+  T.cars[0].racePosition = 3; T.cars[1].racePosition = 1; T.cars[2].racePosition = 2
+  newSession(); T.cars[0].racePosition = 3; T.cars[1].racePosition = 1; T.cars[2].racePosition = 2
+  T.sim.timeToSessionStart = -100; run(0.5)
+  -- fila: 1 (IA), 2 (IA), 0 (tu)
+  place(1, 3300, 100); place(2, 3290, 100); place(0, 3280, 100); run(2)
+  place(1, 3420, 100); place(2, 3410, 100); place(0, 3400, 100); run(0.5)
+  -- verde: el primero se va a 160 y el segundo puede seguirlo por encima del limite de la formacion
+  place(1, 3440, 160); place(2, 3425, 150); place(0, 3412, 150); run(0.5)
+  return lastMsg():find('BANDERA VERDE') ~= nil and last(T.aiCaps[1]) == math.huge and last(T.aiCaps[2]) > 150
+    and msgCount('DEVUELVE') == 0
 ''')
 
 scenario('salida corta: al cruzar la meta no salta la bandera azul aunque el contador de vueltas no coincida', FL + '''
