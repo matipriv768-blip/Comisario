@@ -1,4 +1,4 @@
-COMISARIO SERVIDOR 1.12
+COMISARIO SERVIDOR 1.13
 Script online para el servidor (opcional)
 
 El tutorial paso a paso, esta en la pagina del
@@ -114,7 +114,7 @@ codigo largo, no hay que tocar Content Manager; solo reinicia el servidor.
 Con la forma B: se actualiza solo cuando se publica una version nueva aqui.
 
 COMO SABER SI FUNCIONA
-- Al entrar al servidor (en practica) aparece arriba "COMISARIO SERVIDOR 1.12".
+- Al entrar al servidor (en practica) aparece arriba "COMISARIO SERVIDOR 1.13".
   Si no aparece o sale un numero menor, el servidor esta entregando un script
   antiguo: revisa la direccion de SCRIPT.
 - En la ventana Comisario, el panel dice "enlazado con el script del servidor".

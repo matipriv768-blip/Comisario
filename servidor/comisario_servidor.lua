@@ -1,5 +1,5 @@
 --[[
-  COMISARIO SERVIDOR 1.12  -  script online para Assetto Corsa (Custom Shaders Patch)
+  COMISARIO SERVIDOR 1.13  -  script online para Assetto Corsa (Custom Shaders Patch)
 
   El servidor le envia este archivo a cada piloto al conectarse. No hay que instalarlo.
   Impone la salida lanzada a todos, tengan o no la app Comisario:
@@ -205,10 +205,13 @@ end
 -- Distancia hacia el lado desde la linea de la IA (side 1 o -1 en la fila doble, 0 en una sola fila), o nil si no
 -- cabe. La pole va del lado mas cercano a la linea; en una sola fila el auto se corre si la linea va pegada al borde.
 function FORM2.lateral(sp, side)
-  local ok, w = pcall(ac.getTrackAISplineSides, sp)
-  if not ok or not w or not (w.x > 0 and w.y > 0) or w.x + w.y > 50 then
+  local ok, w0 = pcall(ac.getTrackAISplineSides, sp)
+  if not ok or not w0 or not (w0.x > 0 and w0.y > 0) or w0.x + w0.y > 50 then
     return side == 0 and 0 or nil
   end
+  -- el juego entrega el espacio a cada lado en el orden contrario al que se supuso en la 1.12 (probado offline
+  -- en Monza con la app 1.6.2): se invierte, igual que en la app
+  local w = { x = w0.y, y = w0.x }
   if side == 0 then
     local lo, hi = FORM2.EDGE - w.y, w.x - FORM2.EDGE
     if lo > hi then return 0 end
@@ -358,7 +361,7 @@ local function releasePre()
   end
 end
 
-local SCRIPT_VERSION = '1.12'
+local SCRIPT_VERSION = '1.13'
 local versionShown = false
 
 function script.update(dt)

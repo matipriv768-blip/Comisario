@@ -1,5 +1,11 @@
 # Cambios
 
+## 1.6.2
+- Corregido: el espacio a cada lado de la línea de la IA se usaba al revés. Por eso en Monza el segundo de cada fila partía en el pasto, en Spa la fila quedaba sobre el piano y el radar a veces mandaba al carril equivocado.
+- Al armar la fila en la cuenta regresiva, la app revisa si algún auto quedó con ruedas fuera de la pista. Si hay alguno, prueba el otro orden y se queda con el que deja menos autos fuera. Queda anotado en el registro.
+- Radar: tu carril se mide desde el centro de la pareja (donde se separan las dos columnas), no desde el centro de la pista.
+- Script del servidor 1.13: la misma corrección del lado para la fila online.
+
 ## 1.6.1
 - Radar de la formación en fila doble: muestra tu carril (izquierdo o derecho, el contrario al del auto que larga en tu fila) y dónde vas sobre la pista. Si te pasas a la otra mitad, avisa "PÁSATE A LA IZQUIERDA" o "PÁSATE A LA DERECHA".
 - La IA no se puede obligar a mantener su carril: el juego la lleva por su línea, así que en la formación tiende a ponerse en fila.

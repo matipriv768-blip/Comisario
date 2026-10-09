@@ -1,6 +1,6 @@
 --[[
   COMISARIO  -  comisario de carrera para Assetto Corsa (app Lua de Custom Shaders Patch)
-  Version 1.6.1  -  offline (contra la IA) y online (con amigos que tengan la app)
+  Version 1.6.2  -  offline (contra la IA) y online (con amigos que tengan la app)
 
   Que hace:
     1. Limites de pista, velocidad en pits y salida en falso.
@@ -22,7 +22,7 @@
   Codigo propio, escrito desde cero. No usa codigo ni archivos de otros plugins.
 ]]
 
-local VERSION = '1.6.1'
+local VERSION = '1.6.2'
 
 -- ---------------------------------------------------------------------------
 -- 1. AJUSTES (se guardan solos entre sesiones)
@@ -1782,11 +1782,31 @@ end
 -- Distancia hacia el lado (desde la linea de la IA) para un auto de la fila doble, o nil si no caben dos autos
 -- cerca de la linea o el juego no informa el ancho. w.x es el espacio hacia el lado +1 y w.y hacia el -1
 -- (igual que en la app DynamicReturn de CSP).
-function FORM2.lateral(sp, side)
+-- Espacio desde la linea de la IA hacia el lado +1 y hacia el -1 (en la direccion (-dz, dx) de la pista).
+-- El juego entrega los dos numeros en el orden contrario al que se supuso hasta la 1.6.1 (en Monza un auto quedo
+-- en el pasto y el radar mandaba al lado equivocado). Si aun asi algun auto queda con ruedas fuera al ponerlo en
+-- la fila, RS.checkSides prueba el otro orden.
+FORM2.flip = true
+function FORM2.sides(sp)
   local ok, w = pcall(ac.getTrackAISplineSides, sp)
-  if not ok or not w or not (w.x > 0 and w.y > 0) or w.x + w.y > 50 then
+  if not ok or not w or not (w.x > 0 and w.y > 0) or w.x + w.y > 50 then return nil end
+  if FORM2.flip then return w.y, w.x end
+  return w.x, w.y
+end
+
+-- centro entre las dos columnas de la fila doble, medido desde la linea de la IA (nil si no hay fila doble ahi)
+function FORM2.pairCenter(sp)
+  local a, b = FORM2.lateral(sp, 1), FORM2.lateral(sp, -1)
+  if not a or not b then return nil end
+  return (a + b) / 2
+end
+
+function FORM2.lateral(sp, side)
+  local wp, wm = FORM2.sides(sp)
+  if not wp then
     return side == 0 and 0 or nil          -- sin datos: una columna justo sobre la linea, como siempre
   end
+  local w = { x = wp, y = wm }
   if not FORM2.logged then
     FORM2.logged = true
     addLog(string.format('Fila: espacio desde la linea de la IA hacia cada lado %.1f m y %.1f m', w.x, w.y))
@@ -1988,6 +2008,8 @@ function RS.preStart(sim, car, n)
     addLog('Cuenta regresiva: el juego mantiene los autos en la grilla; se llevan a la fila al largar')
     S.preLock = false
     pcall(function () physics.setCarNoInput(false) end)
+  elseif RS.checkSides(n, len) then
+    -- se probo el otro orden del ancho de la pista: la fila se armo de nuevo
   elseif S.preFixes < 5 and clock - S.preFixAt > 2 then
     -- si el juego devolvio algun auto a la grilla, se le vuelve a poner en la fila (pocas veces)
     S.preFixAt = clock
@@ -1999,6 +2021,43 @@ function RS.preStart(sim, car, n)
       end
     end
   end
+end
+
+-- Un segundo despues de armar la fila se cuentan los autos con ruedas fuera de la pista. Si hay alguno, se prueba
+-- el otro orden del ancho a cada lado; si con ese quedan mas autos fuera, se vuelve al primero.
+function RS.outCount(n)
+  local k = 0
+  for i = 0, n - 1 do
+    local c = ac.getCar(i)
+    if c and (c.wheelsOutside or 0) >= 2 then k = k + 1 end
+  end
+  return k
+end
+
+function RS.checkSides(n, len)
+  if S.sidesDone or clock - S.preFixAt < 1 then return false end
+  local out = RS.outCount(n)
+  if not S.sidesTry then
+    if out == 0 then S.sidesDone = true return false end
+    S.sidesTry, S.sidesOut = true, out
+    FORM2.flip = not FORM2.flip
+    FORM2.single, FORM2.logged = nil, nil
+    RS.placeAll(n, len, false)
+    S.preFixAt = clock
+    addLog(string.format('Fila: %d autos con ruedas fuera de la pista; se prueba el ancho de la pista al reves', out))
+    return true
+  end
+  S.sidesDone = true
+  if out > S.sidesOut then
+    FORM2.flip = not FORM2.flip
+    FORM2.single, FORM2.logged = nil, nil
+    RS.placeAll(n, len, false)
+    S.preFixAt = clock
+    addLog(string.format('Fila: al reves quedaron %d fuera; se vuelve al orden anterior', out))
+    return true
+  end
+  addLog(string.format('Fila: al reves quedaron %d autos fuera (antes %d); se usa este orden', out, S.sidesOut))
+  return false
 end
 
 -- Offline: cada auto de la IA anda a la velocidad del que tiene delante en la fila, para que nadie adelante
@@ -3398,9 +3457,10 @@ function RS.offCenter(c)
     local dd = math.sqrt(dx * dx + dz * dz)
     if dd < 0.001 then error('sin direccion') end
     local px, pz = -dz / dd, dx / dd
-    local w = ac.getTrackAISplineSides(sp)
-    local cx, cz = a.x + px * (w.x - w.y) / 2, a.z + pz * (w.x - w.y) / 2
-    return (c.position.x - cx) * rx + (c.position.z - cz) * rz, (w.x + w.y) / 2
+    local m = FORM2.pairCenter(sp)
+    if not m then error('sin fila doble') end
+    local cx, cz = a.x + px * m, a.z + pz * m
+    return (c.position.x - cx) * rx + (c.position.z - cz) * rz, FORM2.LANE * 2
   end)
   if not ok or not off or not half or half < 2 then return nil end
   return off, half

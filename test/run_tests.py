@@ -1710,16 +1710,16 @@ scenario('fila doble con la linea de la IA cerca de un borde: la pareja se corre
   T.sides = vec2(10, 2.5); T.sim.isSessionStarted = false; T.sim.timeToSessionStart = 15000
   for i = 0, 2 do T.cars[i].splinePosition = 0.98 end
   run(2)
-  -- en la pista de prueba el lado +1 del juego es x negativo; la pareja queda en -1,0 y 2,8 m desde la linea
+  -- en la pista de prueba hay 10 m hacia +x y 2,5 m hacia -x; la pareja queda en -1,0 y 2,8 m desde la linea
   local pole, second = T.cars[1].position.x, T.cars[0].position.x
-  return math.abs(pole - 1.0) < 0.01 and math.abs(second + 2.8) < 0.01 and math.abs(T.cars[2].position.x - pole) < 0.01
+  return math.abs(pole + 1.0) < 0.01 and math.abs(second - 2.8) < 0.01 and math.abs(T.cars[2].position.x - pole) < 0.01
 ''')
 
 scenario('Spa (linea de la IA a 0,5 m del borde): fila doble con la pole junto a la linea y nadie sobre el borde', TWO + '''
   T.sides = vec2(12, 0.5); T.sim.isSessionStarted = false; T.sim.timeToSessionStart = 15000
   for i = 0, 2 do T.cars[i].splinePosition = 0.98 end
   run(2)
-  return math.abs(T.cars[1].position.x + 1.0) < 0.01 and math.abs(T.cars[0].position.x + 4.8) < 0.01
+  return math.abs(T.cars[1].position.x - 1.0) < 0.01 and math.abs(T.cars[0].position.x - 4.8) < 0.01
 ''')
 
 scenario('una sola columna con la linea de la IA pegada al borde: los autos se corren hacia adentro', SHORT_AI + '''
@@ -1727,7 +1727,7 @@ scenario('una sola columna con la linea de la IA pegada al borde: los autos se c
   for i = 0, 2 do T.cars[i].splinePosition = 0.98 end
   run(2)
   local ok = true
-  for i = 0, 2 do if math.abs(T.cars[i].position.x + 1.0) > 0.01 then ok = false end end
+  for i = 0, 2 do if math.abs(T.cars[i].position.x - 1.0) > 0.01 then ok = false end end
   return ok and math.abs(T.cars[0].position.z - 2990) < 0.5
 ''')
 
@@ -1736,7 +1736,7 @@ scenario('fila doble sin espacio cerca de la linea de la IA: una sola columna, c
   for i = 0, 2 do T.cars[i].splinePosition = 0.98 end
   run(6)
   local x = T.cars[0].position.x
-  return math.abs(x + 1.45) < 0.01 and T.cars[1].position.x == x and T.cars[2].position.x == x
+  return math.abs(x - 1.45) < 0.01 and T.cars[1].position.x == x and T.cars[2].position.x == x
     and math.abs(T.cars[0].position.z - 2990) < 0.5 and logText():find('Fila: espacio', 1, true) ~= nil
 ''')
 
@@ -1890,6 +1890,45 @@ scenario('radar en una sola fila o sin datos de las ruedas: no muestra carril', 
   T.sim.isSessionStarted = true; T.sim.timeToSessionStart = -100; run(2)
   local single = hudScreen():find('CARRIL', 1, true) == nil
   return single
+''')
+
+scenario('Monza (2,4 m y 7,7 m): nadie queda con ruedas fuera de la pista al armar la fila doble', TWO + '''
+  T.sim.carsCount = 4
+  newSession(); T.cars[3] = T.newCar(3); T.cars[0].racePosition = 4; T.cars[1].racePosition = 1; T.cars[2].racePosition = 2; T.cars[3].racePosition = 3
+  T.edges = true; T.sides = vec2(7.7, 2.4); T.cfg.writeLog = true
+  T.sim.isSessionStarted = false; T.sim.timeToSessionStart = 15000
+  for i = 0, 3 do T.cars[i].splinePosition = 0.98 end
+  run(6)
+  local out = 0
+  for i = 0, 3 do out = out + T.cars[i].wheelsOutside end
+  return out == 0 and math.abs(T.cars[1].position.x - T.cars[2].position.x) > 3.5 and not logText():find('al reves', 1, true)
+''')
+
+scenario('si el juego diera el ancho en el otro orden, la app lo nota por las ruedas fuera y arma la fila de nuevo', TWO + '''
+  T.sim.carsCount = 4
+  newSession(); T.cars[3] = T.newCar(3); T.cars[0].racePosition = 4; T.cars[1].racePosition = 1; T.cars[2].racePosition = 2; T.cars[3].racePosition = 3
+  T.edges = true; T.realFlip = true; T.sides = vec2(7.7, 2.4); T.cfg.writeLog = true
+  T.sim.isSessionStarted = false; T.sim.timeToSessionStart = 15000
+  for i = 0, 3 do T.cars[i].splinePosition = 0.98 end
+  run(8)
+  local out = 0
+  for i = 0, 3 do out = out + T.cars[i].wheelsOutside end
+  return out == 0 and logText():find('se usa este orden', 1, true) ~= nil
+''')
+
+scenario('radar con la pareja corrida hacia un lado: el carril se mide desde el centro de la pareja', TWO + '''
+  T.sides = vec2(10, 2.5); T.sim.isSessionStarted = false; T.sim.timeToSessionStart = 15000
+  for i = 0, 2 do T.cars[i].splinePosition = 0.98 end
+  run(2)
+  T.sim.isSessionStarted = true; T.sim.timeToSessionStart = -100; run(2)
+  -- pareja en x = -1,0 (pole) y x = 2,8 (tu); el centro de la pareja esta en x = 0,9
+  place(1, 3010, 60, -1.0); place(0, 3006, 60, 2.6); place(2, 2998, 60, -1.0); run(0.3)
+  local good = hudScreen()
+  -- x = 0,1: a la derecha del centro de la pista, pero 0,8 m a la izquierda del centro de la pareja
+  place(0, 3006, 60, -0.1); run(0.3)
+  local wrong = hudScreen()
+  return good:find('CARRIL DERECHO', 1, true) ~= nil and good:find('PASATE', 1, true) == nil
+    and wrong:find('PASATE A LA DERECHA', 1, true) ~= nil
 ''')
 
 scenario('fila doble: cada auto movido se despierta en el motor de fisica', TWO + '''

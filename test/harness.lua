@@ -133,6 +133,14 @@ physics = {
     c.splinePosition = 0.3 + pos.z / 5000
     c.look = vec3(-dir.x, -dir.y, -dir.z)      -- el juego recibe la direccion de la cola: el auto mira al reves de ella
     T.teleports[#T.teleports + 1] = { i = i, z = pos.z, dir = dir }
+    -- T.edges: bordes de la pista como en el juego (vec2 de ancho: x hacia +x, y hacia -x; T.realFlip los invierte).
+    -- Un auto (1,8 m de ancho) cuyo costado pasa el borde queda con ruedas fuera.
+    if T.edges then
+      local w = T.sides or vec2(6, 6)
+      local toPlus, toMinus = w.x, w.y
+      if T.realFlip then toPlus, toMinus = w.y, w.x end
+      c.wheelsOutside = (pos.x + 0.9 > toPlus + 0.01 or -pos.x + 0.9 > toMinus + 0.01) and 2 or 0
+    end
   end,
   setCarNoInput = function (v) T.noInput = v; T.noInputCalls = (T.noInputCalls or 0) + 1 end,
   -- auto despertado en el motor de fisica
