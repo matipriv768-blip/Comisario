@@ -42,12 +42,19 @@ T.calls = {}                -- cuantas veces se llamo a cada funcion de dibujo
 T.textPos = {}              -- donde se dibujo cada texto por ultima vez
 
 local function newCar(i)
-  return {
+  local c = {
     index = i, wheelsOutside = 0, isInPitlane = false, isInPit = false, speedKmh = 0, gas = 0,
     lapCount = 0, splinePosition = 0, collidedWith = -1, position = vec3(0, 0, 0),
     isRaceFinished = false, racePosition = i + 1, sessionID = i, isConnected = true,
     velocity = vec3(0, 0, 0), look = vec3(0, 0, 1), collisionDepth = 0, bestLapTimeMs = 90000, previousLapTimeMs = 0,
   }
+  -- ruedas delanteras (0 = izquierda, 1 = derecha): el auto mira hacia +z y su derecha es +x
+  c.wheels = setmetatable({}, { __index = function (_, k)
+    if T.noWheels or (k ~= 0 and k ~= 1) then return nil end
+    local p = c.position
+    return { position = vec3(p.x + (k == 0 and -0.8 or 0.8), p.y, p.z + 1.3) }
+  end })
+  return c
 end
 T.cars = { [0] = newCar(0), [1] = newCar(1), [2] = newCar(2) }
 T.newCar = newCar             -- las pruebas pueden agregar mas autos

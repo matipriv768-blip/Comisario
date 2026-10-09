@@ -1,6 +1,6 @@
 --[[
   COMISARIO  -  comisario de carrera para Assetto Corsa (app Lua de Custom Shaders Patch)
-  Version 1.6.0  -  offline (contra la IA) y online (con amigos que tengan la app)
+  Version 1.6.1  -  offline (contra la IA) y online (con amigos que tengan la app)
 
   Que hace:
     1. Limites de pista, velocidad en pits y salida en falso.
@@ -22,7 +22,7 @@
   Codigo propio, escrito desde cero. No usa codigo ni archivos de otros plugins.
 ]]
 
-local VERSION = '1.6.0'
+local VERSION = '1.6.1'
 
 -- ---------------------------------------------------------------------------
 -- 1. AJUSTES (se guardan solos entre sesiones)
@@ -3355,25 +3355,103 @@ function RS.pickRadar(f, n)
   if best then
     f.radar = { ref = best, want = math.max(3, math.min(20, metersAhead(ac.getCar(best), me))) }
   end
+  -- fila doble: tu carril es el lado contrario al del auto que larga en tu misma fila
+  f.lane = nil
+  local rx, rz = RS.rightOf(me)
+  if rx then
+    local myRow = math.ceil(mySlot / 2)
+    for _, j in ipairs(f.order) do
+      local c = j ~= 0 and ac.getCar(j)
+      if c and math.ceil(startSlot(j, n) / 2) == myRow then
+        local dx, dz = c.position.x - me.position.x, c.position.z - me.position.z
+        local lat = dx * rx + dz * rz
+        if math.abs(dx * lx + dz * lz) < 10 and math.abs(lat) > 2.5 and math.abs(lat) < 9 then
+          f.lane = lat > 0 and -1 or 1
+        end
+      end
+    end
+  end
+end
+
+-- vector hacia la derecha del auto: de la rueda delantera izquierda a la derecha (nil si el juego no lo da)
+function RS.rightOf(c)
+  local ok, rx, rz = pcall(function ()
+    local a, b = c.wheels[0].position, c.wheels[1].position
+    return b.x - a.x, b.z - a.z
+  end)
+  if not ok or not rx or not rz then return nil end
+  local l = math.sqrt(rx * rx + rz * rz)
+  if l < 0.5 then return nil end
+  return rx / l, rz / l
+end
+
+-- metros a la derecha (positivo) o a la izquierda (negativo) del centro de la pista, y el medio ancho de la pista
+function RS.offCenter(c)
+  local rx, rz = RS.rightOf(c)
+  if not rx then return nil end
+  local ok, off, half = pcall(function ()
+    local sp = c.splinePosition
+    local len = trackLen(ac.getSim())
+    local a = ac.trackProgressToWorldCoordinate(sp)
+    local b = ac.trackProgressToWorldCoordinate(sp + 2 / len)
+    local dx, dz = b.x - a.x, b.z - a.z
+    local dd = math.sqrt(dx * dx + dz * dz)
+    if dd < 0.001 then error('sin direccion') end
+    local px, pz = -dz / dd, dx / dd
+    local w = ac.getTrackAISplineSides(sp)
+    local cx, cz = a.x + px * (w.x - w.y) / 2, a.z + pz * (w.x - w.y) / 2
+    return (c.position.x - cx) * rx + (c.position.z - cz) * rz, (w.x + w.y) / 2
+  end)
+  if not ok or not off or not half or half < 2 then return nil end
+  return off, half
+end
+
+-- Linea del carril: cual te toca y donde vas (una marca blanca sobre los dos carriles). Avisa si te pasaste.
+function RS.drawLane(c, y, w, lane, off, half)
+  local wrong = off and ((lane < 0 and off > 0.8) or (lane > 0 and off < -0.8))
+  local text
+  if wrong then
+    text = lane < 0 and tr('PÁSATE A LA IZQUIERDA') or tr('PÁSATE A LA DERECHA')
+  else
+    text = lane < 0 and tr('CARRIL IZQUIERDO') or tr('CARRIL DERECHO')
+  end
+  local color = wrong and COL_YELLOW or COL_WHITE
+  txt(text, hs(14), c.x + hs(14), y + hs(3), color, true)
+  -- los dos carriles: el tuyo en verde
+  local lw, lh = hs(46), hs(12)
+  local x2 = c.x + w - hs(12)
+  local mid = x2 - lw
+  local ly = y + hs(6)
+  ui.drawRectFilled(vec2(mid - lw, ly), vec2(mid - hs(1), ly + lh), lane < 0 and fade(COL_GREEN, 0.7) or P_LINE, hs(2))
+  ui.drawRectFilled(vec2(mid + hs(1), ly), vec2(x2, ly + lh), lane > 0 and fade(COL_GREEN, 0.7) or P_LINE, hs(2))
+  if off then
+    local px = mid + lw * math.max(-1, math.min(1, off / math.max(2, half)))
+    ui.drawRectFilled(vec2(px - hs(2), ly - hs(3)), vec2(px + hs(2), ly + lh + hs(3)), color)
+  end
+  return wrong
 end
 
 function RS.drawRadar(c, y, w, f)
   local car = ac.getCar(0)
   local gap, want, hint, color
+  local lane, off, half = f and f.lane, nil, nil
   if f and f.radar and ac.getCar(f.radar.ref) then
     gap, want = metersAhead(ac.getCar(f.radar.ref), car), f.radar.want
   elseif cfg.hudPlace and not (f and f.phase == 'formation') then
-    gap, want = 19, 12
+    gap, want, lane, off, half = 19, 12, -1, -2, 6
   elseif f and f.radar == false then
     gap = nil
   else
     return 0
   end
-  local h = hs(gap and 62 or 34)
+  if lane and not off then off, half = RS.offCenter(car) end
+  local laneH = lane and hs(24) or 0
+  local h = hs(gap and 62 or 34) + laneH
   local soft = cfg.hudBg and P_MUTED or HX.soft
   panel(c.x, y, w, h, 1)
   if not gap then
     txt(tr('LÍDER: MARCAS EL RITMO'), hs(14), c.x + hs(14), y + hs(9), COL_WHITE, true)
+    if lane then RS.drawLane(c, y + hs(32), w, lane, off, half) end
     return h
   end
   local lo, hi = math.max(1, want - 3), want + 6
@@ -3387,7 +3465,7 @@ function RS.drawRadar(c, y, w, f)
   txt(num, hs(20), c.x + hs(14), y + hs(19), color, true)
   txt(hint, hs(16), c.x + w - tw(hint, hs(16), true) - hs(12), y + hs(21), color, true)
   -- barra: rojo muy cerca, verde la distancia buena, gris lejos; la marca blanca es donde estas
-  local x1, full, by = c.x + hs(14), w - hs(28), y + h - hs(14)
+  local x1, full, by = c.x + hs(14), w - hs(28), y + h - laneH - hs(14)
   local range = want * 2 + 15
   local function xAt(m) return x1 + full * math.max(0, math.min(1, m / range)) end
   ui.drawRectFilled(vec2(x1, by), vec2(x1 + full, by + hs(6)), P_LINE, hs(3))
@@ -3395,6 +3473,7 @@ function RS.drawRadar(c, y, w, f)
   ui.drawRectFilled(vec2(xAt(lo), by), vec2(xAt(hi), by + hs(6)), fade(COL_GREEN, 0.7))
   local mx = xAt(gap)
   ui.drawRectFilled(vec2(mx - hs(2), by - hs(4)), vec2(mx + hs(2), by + hs(10)), COL_WHITE)
+  if lane then RS.drawLane(c, y + h - laneH - hs(2), w, lane, off, half) end
   return h
 end
 
@@ -3997,7 +4076,7 @@ function W.tabRace(all)
       W.slider(tr('El primero parte a'), 'formStartM', 200, 2000, tr('%.0f m de la meta'),
         tr('Offline, si ahí la pista es curva, la fila se arma en el primer tramo recto más atrás (hasta 400 m).'))
       W.check(tr('Radar de distancia'), 'formRadar',
-        tr('En la formación, debajo del velocímetro: la distancia al auto que tienes que seguir y si estás muy cerca o muy lejos.'))
+        tr('En la formación, debajo del velocímetro: la distancia al auto que tienes que seguir y si estás muy cerca o muy lejos. En dos filas, también tu carril y si te pasaste al otro.'))
       W.check(tr('Dos filas'), 'formTwoWide',
         tr('Los autos parten de a dos, uno al lado del otro y en el orden de la grilla. Vale offline; online lo decide el script del servidor (twoWide). La IA tiende a ponerse en una sola fila al avanzar.'))
     end
@@ -4612,8 +4691,12 @@ EN['Salida corta'] = 'Short start'
 EN['Los autos parten en fila cerca del final de la vuelta, sin dar la vuelta de formación completa. Online necesita el script del servidor.'] = 'The cars start in line near the end of the lap, without a full formation lap. Online it needs the server script.'
 EN['El primero parte a'] = 'The leader starts'
 EN['Dos filas'] = 'Two rows'
+EN['PÁSATE A LA IZQUIERDA'] = 'MOVE TO THE LEFT'
+EN['PÁSATE A LA DERECHA'] = 'MOVE TO THE RIGHT'
+EN['CARRIL IZQUIERDO'] = 'LEFT LANE'
+EN['CARRIL DERECHO'] = 'RIGHT LANE'
 EN['Radar de distancia'] = 'Gap radar'
-EN['En la formación, debajo del velocímetro: la distancia al auto que tienes que seguir y si estás muy cerca o muy lejos.'] = 'During the formation, below the speedometer: the gap to the car you have to follow and whether you are too close or too far.'
+EN['En la formación, debajo del velocímetro: la distancia al auto que tienes que seguir y si estás muy cerca o muy lejos. En dos filas, también tu carril y si te pasaste al otro.'] = 'During the formation, below the speedometer: the gap to the car you have to follow and whether you are too close or too far. With two rows, also your lane and whether you drifted into the other one.'
 EN['LÍDER: MARCAS EL RITMO'] = 'LEADER: SET THE PACE'
 EN['TE ADELANTASTE'] = 'TOO FAR FORWARD'
 EN['ABRE ESPACIO'] = 'BACK OFF'

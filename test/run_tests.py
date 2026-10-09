@@ -1857,6 +1857,41 @@ scenario('radar de la formacion: el que larga primero ve que marca el ritmo; sin
   return lead and hudScreen():find('MARCAS EL RITMO', 1, true) == nil
 ''')
 
+scenario('radar en fila doble: te dice tu carril y te avisa si te pasas al del otro', TWO + '''
+  -- largas segundo: el primero (pole) queda a tu izquierda, tu carril es el derecho
+  T.sim.isSessionStarted = false; T.sim.timeToSessionStart = 15000
+  for i = 0, 2 do T.cars[i].splinePosition = 0.98 end
+  run(2)
+  T.sim.isSessionStarted = true; T.sim.timeToSessionStart = -100; run(2)
+  local a = hudScreen()
+  place(1, 3010, 60, -1.9); place(0, 3006, 60, -1.5); place(2, 2998, 60, -1.9); run(0.3)
+  local b = hudScreen()
+  place(0, 3006, 60, 1.9); run(0.3)
+  local c = hudScreen()
+  return a:find('CARRIL DERECHO', 1, true) ~= nil and b:find('PASATE A LA DERECHA', 1, true) ~= nil
+    and c:find('CARRIL DERECHO', 1, true) ~= nil and c:find('PASATE', 1, true) == nil
+''')
+
+scenario('radar en fila doble: la pole tiene el carril izquierdo y tambien lo ve como lider', TWO + '''
+  T.cars[0].racePosition = 1; T.cars[1].racePosition = 2; T.cars[2].racePosition = 3
+  newSession(); T.cars[0].racePosition = 1; T.cars[1].racePosition = 2; T.cars[2].racePosition = 3
+  T.sim.isSessionStarted = false; T.sim.timeToSessionStart = 15000
+  for i = 0, 2 do T.cars[i].splinePosition = 0.98 end
+  run(2)
+  T.sim.isSessionStarted = true; T.sim.timeToSessionStart = -100; run(2)
+  local a = hudScreen()
+  return a:find('MARCAS EL RITMO', 1, true) ~= nil and a:find('CARRIL IZQUIERDO', 1, true) ~= nil
+''')
+
+scenario('radar en una sola fila o sin datos de las ruedas: no muestra carril', SHORT_AI + '''
+  T.sim.isSessionStarted = false; T.sim.timeToSessionStart = 15000
+  for i = 0, 2 do T.cars[i].splinePosition = 0.98 end
+  run(2)
+  T.sim.isSessionStarted = true; T.sim.timeToSessionStart = -100; run(2)
+  local single = hudScreen():find('CARRIL', 1, true) == nil
+  return single
+''')
+
 scenario('fila doble: cada auto movido se despierta en el motor de fisica', TWO + '''
   T.sim.isSessionStarted = false; T.sim.timeToSessionStart = 15000
   for i = 0, 2 do T.cars[i].splinePosition = 0.98 end

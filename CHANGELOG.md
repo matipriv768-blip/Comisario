@@ -1,5 +1,9 @@
 # Cambios
 
+## 1.6.1
+- Radar de la formación en fila doble: muestra tu carril (izquierdo o derecho, el contrario al del auto que larga en tu fila) y dónde vas sobre la pista. Si te pasas a la otra mitad, avisa "PÁSATE A LA IZQUIERDA" o "PÁSATE A LA DERECHA".
+- La IA no se puede obligar a mantener su carril: el juego la lleva por su línea, así que en la formación tiende a ponerse en fila.
+
 ## 1.6.0
 - Radar de la formación: debajo del velocímetro, la distancia al auto que tienes que seguir (el de adelante en tu columna o, si eres el segundo de una fila doble, el que va a tu lado), con una barra y un aviso: BIEN, ACÉRCATE, ABRE ESPACIO o TE ADELANTASTE. La distancia buena es la que tenías al quedar en la fila, así sirve offline y online. Se apaga en Largada > Radar de distancia.
 - Pelotón más compacto offline: el líder de la IA sube de velocidad de a poco y afloja si la fila se estira, para que todos lleguen juntos a la verde.
