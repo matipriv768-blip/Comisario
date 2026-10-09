@@ -153,7 +153,7 @@ Desde ahí, el reglamento, el tipo de salida y las banderas que elijas en tu app
 | `adminPass = 'tuclave'` | Clave de administrador. Si borras la línea, no hay administrador y cada piloto usa sus propias reglas. |
 | `requireApp = 1` | Quien entre sin la app no pasa de 60 km/h. Bórrala si no quieres exigirla. |
 | `language = 'en'` | Opcional: los mensajes del servidor salen en inglés. |
-| `twoWide = 0` | Opcional: la salida corta en una sola fila. Sin la línea, va en dos filas (1 y 2 lado a lado). |
+| `twoWide = 0` | Opcional: la salida corta en una sola fila. Sin la línea, va en dos filas (1 y 2 lado a lado, el 2 unos metros detrás). Si la pista no da para dos autos en esa zona, va en una sola fila igual. |
 | `lockStart = 1` | Opcional: el tipo de salida lo fija el servidor y no se puede cambiar desde la app. |
 
 ### Actualizar el script del servidor
@@ -202,7 +202,7 @@ Repórtalo en la pestaña [Issues](https://github.com/matipriv768-blip/Comisario
 - **Sanciones**: tiempo, levantar el pie, drive-through, stop and go y descalificación, con plazo en vueltas.
 - **Devolver la posición** tras un contacto, un adelantamiento por fuera de la pista o con bandera amarilla.
 - **Banderas**: verde, amarilla, azul, blanca, a cuadros y negra, más amarilla total y roja decretadas por la dirección de carrera.
-- **Salida parada o lanzada**, con vuelta de formación completa o corta, velocímetro contra el límite y semáforo verde.
+- **Salida parada o lanzada**, con vuelta de formación completa o corta, en una o dos filas, velocímetro contra el límite, radar de distancia al auto de adelante y semáforo verde.
 - **Sesiones**: en práctica solo cuenta, en clasificación solo invalida la vuelta, en carrera sanciona.
 - **IA**: también es vigilada y cumple en pista, si la pista lo permite (sin probar todavía en el juego).
 - **Online**: cada piloto es vigilado por su propia app y todas se avisan entre sí. El administrador impone su reglamento y las banderas a todo el servidor.
@@ -211,8 +211,8 @@ Repórtalo en la pestaña [Issues](https://github.com/matipriv768-blip/Comisario
 
 ## Estado del proyecto y límites conocidos
 
-- Probado en el juego por su autor solo, sin IA en pista, y en un servidor propio con uno o dos pilotos: sanciones, salida lanzada corta, envío a pits del descalificado, administrador, interfaz fija e íconos. No se ha probado con grillas grandes ni en servidores públicos.
-- Todo lo relacionado con la IA, las banderas con varios autos en pista y el aviso de ganador solo están verificados con el simulador de pruebas de este repositorio. Si lo pruebas, se agradece el reporte.
+- Probado en el juego por su autor: offline contra la IA en Spa (salida lanzada corta en una y dos filas, con hasta 14 autos) y en un servidor propio con uno o dos pilotos (sanciones, salida lanzada corta, envío a pits del descalificado, administrador, interfaz fija e íconos). No se ha probado en servidores públicos ni con grillas grandes online. La fila doble online (script 1.12) y el radar de la formación aún no se prueban en el juego.
+- Las sanciones que cumple la IA en pista, las banderas con varios autos y el aviso de ganador solo están verificados con el simulador de pruebas de este repositorio. Si lo pruebas, se agradece el reporte.
 - La descalificación no expulsa a nadie del servidor ni cambia la tabla de resultados del juego.
 - Todo corre en el PC de cada piloto: la clave de administrador frena a un piloto común, no a alguien que modifique su copia de la app.
 - Online, quien no tenga la app no es vigilado.

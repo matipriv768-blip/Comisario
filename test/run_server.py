@@ -361,7 +361,7 @@ scenario('carrera reiniciada: en la nueva cuenta regresiva el auto vuelve a ir a
 scenario('al cargar, el script avisa una sola vez que version es', """
   T.sim.raceSessionType = ac.SessionType.Practice
   place(0, 0, 50); run(8)
-  local shown = #T.versionMsgs == 1 and T.versionMsgs[1]:find('COMISARIO SERVIDOR 1.11', 1, true) ~= nil
+  local shown = #T.versionMsgs == 1 and T.versionMsgs[1]:find('COMISARIO SERVIDOR 1.12', 1, true) ~= nil
   T.sim.raceSessionType = ac.SessionType.Race; run(8)
   return shown and #T.versionMsgs == 1
 """)
@@ -384,25 +384,52 @@ scenario("language = 'en': los mensajes del script salen en ingles", """
 scenario("language = 'en': el aviso de version tambien", """
   T.sim.raceSessionType = ac.SessionType.Practice
   place(0, 0, 50); run(8)
-  return #T.versionMsgs == 1 and T.versionMsgs[1] == 'COMISARIO SERVER 1.11 | Server script loaded'
+  return #T.versionMsgs == 1 and T.versionMsgs[1] == 'COMISARIO SERVER 1.12 | Server script loaded'
 """, pre="SCRIPT_CFG = { language = 'EN' }")
 
-scenario('fila doble (por defecto): el 1 y el 2 lado a lado, el 3 en la fila siguiente', """
+scenario('fila doble (por defecto): el 1 y el 2 lado a lado (el 2 escalonado 4 m), el 3 en la fila siguiente', """
   T.sim.carsCount = 3; T.cars[0].racePosition = 2; T.cars[1].racePosition = 1; T.cars[2].racePosition = 3
   T.sim.isSessionStarted = false; place(0, 3440, 0); run(3)
-  local second = #T.teleports == 1 and math.abs(T.teleports[1].z - 3000) < 0.5 and math.abs(T.cars[0].position.x - 2.6) < 0.01
+  local second = #T.teleports == 1 and math.abs(T.teleports[1].z - 2996) < 0.5 and math.abs(T.cars[0].position.x - 1.9) < 0.01
   T.cars[0].racePosition = 3; T.cars[2].racePosition = 2
   T.sim.isSessionStarted = true; run(0.5); T.sim.isSessionStarted = false; place(0, 3440, 0); run(3)
-  local third = math.abs(last(T.teleports).z - 2988) < 0.5 and math.abs(T.cars[0].position.x + 2.6) < 0.01
+  local third = math.abs(last(T.teleports).z - 2988) < 0.5 and math.abs(T.cars[0].position.x + 1.9) < 0.01
   return second and third
 """, pre=SHORT2)
 
-scenario('fila doble sin el ancho de la pista: el segundo de la fila va 6 m detras, en la linea', """
+scenario('fila doble sin el ancho de la pista: una sola fila, 10 m detras, en la linea', """
   T.noSides = true
   T.sim.carsCount = 2; T.cars[0].racePosition = 2; T.cars[1].racePosition = 1
   T.sim.isSessionStarted = false; place(0, 3440, 0); run(8)
-  return #T.teleports == 1 and math.abs(T.teleports[1].z - 2994) < 0.5 and T.cars[0].position.x == 0
+  return #T.teleports == 1 and math.abs(T.teleports[1].z - 2990) < 0.5 and T.cars[0].position.x == 0
 """, pre=SHORT2)
+
+scenario('fila doble con la linea de la IA pegada al borde (Spa): la pole junto a la linea, nadie sobre el borde', """
+  T.sides = vec2(12, 0.5)
+  T.sim.carsCount = 2; T.cars[0].racePosition = 1; T.cars[1].racePosition = 2
+  T.sim.isSessionStarted = false; place(0, 3440, 0); run(3)
+  return #T.teleports == 1 and math.abs(T.teleports[1].z - 3000) < 0.5 and math.abs(T.cars[0].position.x + 1.0) < 0.01
+""", pre=SHORT2)
+
+scenario('la fila se arma en el primer tramo recto: si a 500 m de la meta la pista es curva, el primero parte mas atras', """
+  local base = ac.trackProgressToWorldCoordinate
+  ac.trackProgressToWorldCoordinate = function (v)
+    local p = base(v)
+    local m = (1 - v) * 5000
+    local k = math.max(0, math.min(m, 650) - 450)
+    return vec3(p.x + 0.004 * k * k, p.y, p.z)
+  end
+  T.sim.carsCount = 2; T.cars[0].racePosition = 1; T.cars[1].racePosition = 2
+  T.sim.isSessionStarted = false; place(0, 3440, 0); run(3)
+  return #T.teleports == 1 and math.abs(T.teleports[1].z - 2800) < 0.5
+""", pre=SHORT2)
+
+scenario('una sola fila (twoWide = 0) con la linea de la IA pegada al borde: el auto se corre hacia adentro', """
+  T.sides = vec2(12, 0.5)
+  T.sim.carsCount = 2; T.cars[0].racePosition = 2; T.cars[1].racePosition = 1
+  T.sim.isSessionStarted = false; place(0, 3440, 0); run(3)
+  return #T.teleports == 1 and math.abs(T.teleports[1].z - 2990) < 0.5 and math.abs(T.cars[0].position.x + 1.0) < 0.01
+""", pre=SHORT)
 
 fails = 0
 for name, ok, err in results:

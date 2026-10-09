@@ -1,5 +1,5 @@
 --[[
-  COMISARIO SERVIDOR 1.11  -  script online para Assetto Corsa (Custom Shaders Patch)
+  COMISARIO SERVIDOR 1.12  -  script online para Assetto Corsa (Custom Shaders Patch)
 
   El servidor le envia este archivo a cada piloto al conectarse. No hay que instalarlo.
   Impone la salida lanzada a todos, tengan o no la app Comisario:
@@ -18,6 +18,9 @@
     - El traslado se hace apenas carga la carrera, durante la cuenta regresiva: el auto espera las luces
       en la fila, con los controles bloqueados. Si el juego no lo permite, se hace al apagarse las luces.
     - Desde ahi ruedan a la velocidad de formacion hasta la bandera verde. No hay que sumar una vuelta.
+    - Si en ese punto la pista es curva, la fila se arma en el primer tramo recto mas atras (hasta 400 m).
+    - En dos filas, el segundo de cada fila va 4 m detras del primero y la pareja va cerca de la linea
+      de la IA, sin pisar el piano. Si no cabe, va en una sola fila.
 
   Tipo de salida:
     - Si el piloto tiene la app Comisario, vale el tipo de salida elegido en la app
@@ -66,8 +69,11 @@ local requireApp = (tonumber(settings.requireApp) or 0) ~= 0
 local baseStart = math.max(0, math.min(3000, tonumber(settings.startMeters) or 0))
 local startMeters = baseStart
 local GRID_GAP = 10      -- metros entre un auto y el siguiente en la fila de la salida corta
--- fila doble: los autos van de a dos, lado a lado; ROW_GAP entre una fila y la siguiente, LANE desde el centro de la pista
-local FORM2 = { on = (tonumber(settings.twoWide) or 1) ~= 0, ROW_GAP = 12, LANE = 2.6, noSides = false }
+-- Fila de la salida corta, igual que la arma la app offline (cada piloto calcula lo mismo con los mismos datos):
+-- ROW_GAP entre filas, STAGGER lo que el segundo de cada fila va detras del primero, LANE la distancia de cada auto
+-- al centro de su pareja, EDGE lo minimo del centro del auto al borde y FAR lo mas lejos de la linea de la IA.
+local FORM2 = { on = (tonumber(settings.twoWide) or 1) ~= 0, ROW_GAP = 12, LANE = 1.9, EDGE = 1.5, FAR = 5, STAGGER = 4,
+  single = false, start = nil, ready = false }
 local NO_APP_SPEED = 60
 
 -- Huella numerica de la clave de administrador (la misma cuenta que hace la app). 0 = sin administrador.
@@ -196,6 +202,114 @@ local function toPits()
   if not ok then pcall(function () ac.tryToTeleportToPits() end) end
 end
 
+-- Distancia hacia el lado desde la linea de la IA (side 1 o -1 en la fila doble, 0 en una sola fila), o nil si no
+-- cabe. La pole va del lado mas cercano a la linea; en una sola fila el auto se corre si la linea va pegada al borde.
+function FORM2.lateral(sp, side)
+  local ok, w = pcall(ac.getTrackAISplineSides, sp)
+  if not ok or not w or not (w.x > 0 and w.y > 0) or w.x + w.y > 50 then
+    return side == 0 and 0 or nil
+  end
+  if side == 0 then
+    local lo, hi = FORM2.EDGE - w.y, w.x - FORM2.EDGE
+    if lo > hi then return 0 end
+    return math.max(lo, math.min(hi, 0))
+  end
+  local room = FORM2.LANE + FORM2.EDGE
+  local lo, hi = room - w.y, w.x - room
+  if lo > hi then return nil end
+  local c = math.max(lo, math.min(hi, 0))
+  if math.abs(c) + FORM2.LANE > FORM2.FAR then return nil end
+  local near = c > 0 and -1 or 1
+  return c + side * near * FORM2.LANE
+end
+
+-- altura del asfalto en el punto corrido hacia el lado; nil si hay un muro o un desnivel
+function FORM2.ground(x, y, z)
+  local ok, d = pcall(physics.raycastTrack, vec3(x, y + 3, z), vec3(0, -1, 0), 8)
+  if not ok or type(d) ~= 'number' or d <= 0 then return y end
+  local g = y + 3 - d
+  if math.abs(g - y) > 1.2 then return nil end
+  return g
+end
+
+-- metros antes de la meta y lado del lugar "slot" de la fila
+function FORM2.spot(slot)
+  local first = FORM2.start or math.max(startMeters, greenMeters + 100)
+  if FORM2.on and not FORM2.single then
+    local even = slot % 2 == 0
+    return first + (math.ceil(slot / 2) - 1) * FORM2.ROW_GAP + (even and FORM2.STAGGER or 0), even and -1 or 1
+  end
+  return first + (slot - 1) * GRID_GAP, 0
+end
+
+-- punto de la pista y direccion en "meters" antes de la meta, corrido "off" metros hacia el lado
+function FORM2.point(len, meters, off)
+  local sp = 1 - meters / len
+  local a = ac.trackProgressToWorldCoordinate(sp)
+  local b = ac.trackProgressToWorldCoordinate(sp + 2 / len)
+  local dx, dy, dz = b.x - a.x, b.y - a.y, b.z - a.z
+  local d = math.sqrt(dx * dx + dy * dy + dz * dz)
+  if d < 0.001 then return nil end
+  local lx, lz = -dz / d, dx / d
+  local ll = math.sqrt(lx * lx + lz * lz)
+  if (off or 0) == 0 or ll < 0.001 then return vec3(a.x, a.y, a.z), dx / d, dy / d, dz / d end
+  local x, z = a.x + lx / ll * off, a.z + lz / ll * off
+  local y = FORM2.ground(x, a.y, z)
+  if not y then return nil end
+  return vec3(x, y, z), dx / d, dy / d, dz / d
+end
+
+-- Decide una vez por carrera donde y como se arma la fila. Todos los pilotos llegan al mismo resultado:
+-- se calcula con la pista y la cantidad de autos conectados, que son iguales para todos.
+function FORM2.prepare(len)
+  if FORM2.ready then return end
+  FORM2.ready = true
+  local n = 0
+  local sim = ac.getSim()
+  for i = 0, sim.carsCount - 1 do
+    local c = ac.getCar(i)
+    if c and c.isConnected ~= false then n = n + 1 end
+  end
+  n = math.max(1, n)
+  FORM2.single = not FORM2.on
+  for pass = 1, 2 do
+    -- el tramo mas recto entre la distancia elegida y 400 m mas atras (en una curva la linea va por el piano)
+    FORM2.start = nil
+    local base = math.max(startMeters, greenMeters + 100)
+    local span = (FORM2.spot(n)) - (FORM2.spot(1)) + 40
+    local function heading(m)
+      local sp = 1 - m / len
+      local a = ac.trackProgressToWorldCoordinate(sp)
+      local b = ac.trackProgressToWorldCoordinate(sp + 2 / len)
+      return math.atan2(b.x - a.x, b.z - a.z)
+    end
+    local bestD, bestDev = base, math.huge
+    local ok = pcall(function ()
+      for d = base, base + 400, 20 do
+        if (d + span) / len > 0.9 then break end
+        local h0 = heading(d)
+        local dev = 0
+        for m = d - 40, d + span, 10 do
+          local dh = math.abs(heading(m) - h0)
+          if dh > math.pi then dh = 2 * math.pi - dh end
+          if dh > dev then dev = dh end
+        end
+        if dev < bestDev then bestD, bestDev = d, dev end
+        if dev < math.rad(6) then break end
+      end
+    end)
+    if ok and bestD ~= base then FORM2.start = bestD end
+    if FORM2.single then return end
+    -- fila doble: tienen que caber todas las parejas; si una no cabe, va todo en una sola fila
+    for slot = 1, n do
+      local meters, side = FORM2.spot(slot)
+      local off = FORM2.lateral(1 - meters / len, side)
+      if not off or not FORM2.point(len, meters, off) then FORM2.single = true break end
+    end
+    if not FORM2.single then return end
+  end
+end
+
 -- Salida lanzada corta: lleva el auto a su lugar en la fila, antes de la ultima parte de la pista.
 -- Devuelve la posicion en la pista (0 a 1) donde quedo, o nil si no se pudo.
 local function formationSpot(car, len)
@@ -207,13 +321,8 @@ local function formationSpot(car, len)
     local c = ac.getCar(i)
     if c and c.isConnected ~= false and (c.racePosition or 999) < (car.racePosition or 1) then slot = slot + 1 end
   end
-  local first = math.max(startMeters, greenMeters + 100)
-  local meters, side = first + (slot - 1) * GRID_GAP, 0
-  if FORM2.on then
-    meters, side = first + (math.ceil(slot / 2) - 1) * FORM2.ROW_GAP, (slot % 2 == 1) and 1 or -1
-    -- sin el ancho de la pista, el segundo de cada fila va 6 m detras del primero en vez de al lado
-    if FORM2.noSides and side < 0 then meters = meters + 6 end
-  end
+  FORM2.prepare(len)
+  local meters, side = FORM2.spot(slot)
   local sp = 1 - meters / len
   if sp < 0.05 then return nil end
   return sp, side
@@ -223,30 +332,14 @@ local function toFormation(car, len)
   local sp, side = formationSpot(car, len)
   if not sp then return nil end
   local ok = pcall(function ()
-    local a = ac.trackProgressToWorldCoordinate(sp)
-    local b = ac.trackProgressToWorldCoordinate(sp + 2 / len)
-    local dx, dy, dz = b.x - a.x, b.y - a.y, b.z - a.z
-    local d = math.sqrt(dx * dx + dy * dy + dz * dz)
-    if d < 0.001 then error('sin direccion') end
-    local px, py, pz = a.x, a.y, a.z
-    if side ~= 0 then
-      -- fila doble: el auto se corre hacia un lado del centro de la pista (el ancho lo da el juego)
-      local okW, w = pcall(ac.getTrackAISplineSides, sp)
-      local lx, lz = -dz / d, dx / d
-      local ll = math.sqrt(lx * lx + lz * lz)
-      if okW and w and (w.x + w.y) > 6 and ll > 0.001 then
-        local off = (w.x - w.y) / 2 + side * math.min(FORM2.LANE, (w.x + w.y) / 2 - 1.5)
-        px, pz = px + lx / ll * off, pz + lz / ll * off
-      elseif not FORM2.noSides then
-        -- el juego no informa el ancho: desde ahora el segundo de cada fila va detras
-        FORM2.noSides = true
-        sp, side = formationSpot(car, len)
-        a = ac.trackProgressToWorldCoordinate(sp)
-        px, py, pz = a.x, a.y, a.z
-      end
-    end
+    local meters = (1 - sp) * len
+    local p, dx, dy, dz = FORM2.point(len, meters, FORM2.lateral(sp, side) or 0)
+    -- si justo ahi no se pudo correr hacia el lado (muro, desnivel), el auto va sobre la linea
+    if not p then p, dx, dy, dz = FORM2.point(len, meters, 0) end
+    if not p then error('sin direccion') end
     -- el juego espera la direccion al reves: hacia donde apunta la cola del auto
-    physics.setCarPosition(0, vec3(px, py + 0.2, pz), vec3(-dx / d, -dy / d, -dz / d))
+    physics.setCarPosition(0, vec3(p.x, p.y + 0.2, p.z), vec3(-dx, -dy, -dz))
+    pcall(physics.awakeCar, 0)
   end)
   return ok and sp or nil
 end
@@ -265,7 +358,7 @@ local function releasePre()
   end
 end
 
-local SCRIPT_VERSION = '1.11'
+local SCRIPT_VERSION = '1.12'
 local versionShown = false
 
 function script.update(dt)
@@ -324,10 +417,12 @@ function script.update(dt)
   if sim.raceSessionType ~= ac.SessionType.Race then
     releasePre()
     preAt, prePlaced, preFailed, preFixes, gridPos = nil, false, false, 0, nil
+    FORM2.ready = false
   elseif not sim.isSessionStarted then
     if phase ~= 'idle' then
       -- la carrera se reinicio: se empieza de nuevo
       preAt, prePlaced, preFailed, preFixes, gridPos = nil, false, false, 0, nil
+      FORM2.ready = false
     end
     if rolling and short and not appDq then
       preAt = preAt or now
@@ -391,7 +486,7 @@ function script.update(dt)
       local sp = c.splinePosition
       if short then
         -- salida corta: cuenta el auto que ya esta en la fila (despues del teletransporte), antes del punto de la verde
-        if now - startedAt > 1.5 and sp < early and sp < 0.999 and sp > 1 - (math.max(startMeters, greenMeters + 100) + 400) / len then
+        if now - startedAt > 1.5 and sp < early and sp < 0.999 and sp > 1 - ((FORM2.start or math.max(startMeters, greenMeters + 100)) + 400) / len then
           midLap[i] = true
         end
       elseif sp > 0.4 and sp < 0.7 then

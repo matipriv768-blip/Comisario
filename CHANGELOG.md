@@ -1,5 +1,11 @@
 # Cambios
 
+## 1.6.0
+- Radar de la formación: debajo del velocímetro, la distancia al auto que tienes que seguir (el de adelante en tu columna o, si eres el segundo de una fila doble, el que va a tu lado), con una barra y un aviso: BIEN, ACÉRCATE, ABRE ESPACIO o TE ADELANTASTE. La distancia buena es la que tenías al quedar en la fila, así sirve offline y online. Se apaga en Largada > Radar de distancia.
+- Pelotón más compacto offline: el líder de la IA sube de velocidad de a poco y afloja si la fila se estira, para que todos lleguen juntos a la verde.
+- Formación más corta: el tramo recto para armar la fila se busca hasta 400 m más atrás (antes 600 m).
+- Script del servidor 1.12: la fila online se arma igual que offline (tramo recto, pareja cerca de la línea de la IA con el segundo 4 m detrás, nadie sobre el piano). Si no caben dos autos, va en una sola fila; todos los pilotos llegan a la misma decisión.
+
 ## 1.5.8
 - Fila doble escalonada: el segundo de cada fila va 4 m detrás del primero, como en una grilla real. Con los dos exactamente lado a lado, la IA de la pole no arrancaba (visto dos veces en Spa) y frenaba a toda la fila.
 - Si uno o pocos autos de la IA quedan detenidos en la formación, la app lleva solo esos a la línea de la IA, un par de metros más adelante, y deja al resto donde está. Rearmar toda la fila en una columna queda solo para cuando casi toda la IA está detenida.

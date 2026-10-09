@@ -154,7 +154,7 @@ From then on, the rules, start type and flags you choose in your app apply to ev
 | `adminPass = 'yourkey'` | Administrator key. Without this line there is no administrator and each driver uses their own rules. |
 | `requireApp = 1` | Drivers without the app cannot go over 60 km/h. Delete it to not require the app. |
 | `language = 'en'` | The server's messages are shown in English. Delete it for Spanish. |
-| `twoWide = 0` | Optional: short start in a single line. Without it, cars start two by two (1 and 2 side by side). |
+| `twoWide = 0` | Optional: short start in a single line. Without it, cars start two by two (1 and 2 side by side, 2 a few metres back). If the track has no room for two cars there, it uses a single line anyway. |
 | `lockStart = 1` | Optional: the start type is set by the server and cannot be changed from the app. |
 
 ### Updating the server script
@@ -196,7 +196,7 @@ Report it in the [Issues](https://github.com/matipriv768-blip/Comisario/issues) 
 - **Penalties**: time, lift off, drive-through, stop and go and disqualification, with a deadline in laps.
 - **Giving the position back** after contact, an off-track overtake or an overtake under yellow.
 - **Flags**: green, yellow, blue, white, chequered and black, plus full course yellow and red called by race control.
-- **Standing or rolling start**, with a full or short formation lap, a speed readout against the limit and green lights.
+- **Standing or rolling start**, with a full or short formation lap, in one or two rows, a speed readout against the limit, a gap radar to the car ahead and green lights.
 - **Sessions**: practice only counts, qualifying only invalidates the lap, races penalise.
 - **AI** is watched too and serves penalties on track, if the track allows it (not yet tested in game).
 - **Online**: each driver is watched by their own app and the apps report to each other. The administrator sets the rules and flags for the whole server.
@@ -205,8 +205,8 @@ Report it in the [Issues](https://github.com/matipriv768-blip/Comisario/issues) 
 
 ## Project status and known limits
 
-- Tested in game by its author alone, with no AI on track, and on a private server with one or two drivers: penalties, short rolling start, sending a disqualified driver to the pits, administrator, fixed interface and icons. Not tested with large grids or on public servers.
-- Everything related to the AI, flags with several cars on track and the winner announcement are only verified with the test simulator in this repository. Reports are welcome.
+- Tested in game by its author: offline against the AI at Spa (short rolling start in one and two rows, with up to 14 cars) and on a private server with one or two drivers (penalties, short rolling start, sending a disqualified driver to the pits, administrator, fixed interface and icons). Not tested on public servers or with large online grids. The online two-row start (script 1.12) and the formation radar are not tested in game yet.
+- The AI serving penalties on track, flags with several cars and the winner announcement are only verified with the test simulator in this repository. Reports are welcome.
 - Disqualification does not kick anyone from the server or change the game's own results table.
 - Everything runs on each driver's PC: the administrator key stops a regular driver, not someone who edits their own copy of the app.
 - Online, drivers without the app are not watched.

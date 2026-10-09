@@ -1605,7 +1605,8 @@ scenario('offline, formacion: la IA anda al ritmo del auto que tiene delante y n
   local free = last(T.aiCaps[2]) == 100
   place(2, 2995, 60); run(1)                               -- se te puso delante: frena para que vuelvas a pasar
   local back = last(T.aiCaps[2]) == 30
-  return tight and free and back and last(T.aiCaps[1]) == 100
+  -- el lider de la IA sube de a poco: a los pocos segundos todavia va bajo el limite
+  return tight and free and back and last(T.aiCaps[1]) < 60 and last(T.aiCaps[1]) >= 25
 ''')
 
 scenario('offline, salida corta: despues de la verde la IA sigue limitada hasta cruzar la meta', SHORT_AI + '''
@@ -1798,6 +1799,62 @@ scenario('formacion: adelantar a un auto que se salio de la pista no obliga a de
   T.cars[1].wheelsOutside = 4
   place(1, 3050, 40, 6); place(0, 3060, 60); run(3)
   return msgCount('DEVUELVE') == 0
+''')
+
+scenario('formacion: el lider de la IA sube de a poco hasta el limite si la fila va junta', SHORT_AI + '''
+  T.sim.timeToSessionStart = -100; run(0.5)
+  local early
+  for k = 1, 120 do
+    local z = 3000 + k * 2
+    place(1, z, 60); place(0, z - 10, 60); place(2, z - 20, 60); run(0.25)
+    if k == 8 then early = last(T.aiCaps[1]) end
+  end
+  return early < 45 and last(T.aiCaps[1]) == 100
+''')
+
+scenario('formacion: si la fila se estira, el lider de la IA afloja para esperar al resto', SHORT_AI + '''
+  T.sim.timeToSessionStart = -100; run(0.5)
+  for k = 1, 120 do place(1, 3000 + k, 60); place(0, 2990 + k, 60); place(2, 2980 + k, 60); run(0.25) end
+  local compact = last(T.aiCaps[1])
+  -- el ultimo se quedo 120 m atras
+  place(1, 3130, 60); place(0, 3120, 60); place(2, 3000, 60); run(1)
+  return compact == 100 and last(T.aiCaps[1]) <= 70
+''')
+
+scenario('radar de la formacion: muestra la distancia al auto de adelante y avisa si estas lejos o muy cerca', SHORT_AI + '''
+  T.sim.isSessionStarted = false; T.sim.timeToSessionStart = 15000
+  for i = 0, 2 do T.cars[i].splinePosition = 0.98 end
+  run(2)
+  T.sim.isSessionStarted = true; T.sim.timeToSessionStart = -100; run(2)
+  local a = hudScreen()
+  place(1, 3030, 60); place(0, 3000, 60); place(2, 2980, 60); run(0.5)
+  local far = hudScreen()
+  place(1, 3005, 60); place(0, 3000, 60); place(2, 2980, 60); run(0.5)
+  local close = hudScreen()
+  return a:find('DISTANCIA AL DE ADELANTE', 1, true) ~= nil and a:find('10 m', 1, true) ~= nil and a:find('BIEN', 1, true) ~= nil
+    and far:find('ACERCATE', 1, true) ~= nil and close:find('ABRE ESPACIO', 1, true) ~= nil
+''')
+
+scenario('radar de la formacion: en la fila doble el segundo de la fila sigue al que va a su lado', TWO + '''
+  T.cars[0].racePosition = 2; T.cars[1].racePosition = 1; T.cars[2].racePosition = 3
+  T.sim.isSessionStarted = false; T.sim.timeToSessionStart = 15000
+  for i = 0, 2 do T.cars[i].splinePosition = 0.98 end
+  run(2)
+  T.sim.isSessionStarted = true; T.sim.timeToSessionStart = -100; run(2)
+  local a = hudScreen()
+  return a:find('4 m', 1, true) ~= nil and a:find('BIEN', 1, true) ~= nil
+''')
+
+scenario('radar de la formacion: el que larga primero ve que marca el ritmo; sin el ajuste no aparece', SHORT_AI + '''
+  T.cars[0].racePosition = 1; T.cars[1].racePosition = 2; T.cars[2].racePosition = 3
+  newSession(); T.cars[0].racePosition = 1; T.cars[1].racePosition = 2; T.cars[2].racePosition = 3
+  T.sim.isSessionStarted = false; T.sim.timeToSessionStart = 15000
+  for i = 0, 2 do T.cars[i].splinePosition = 0.98 end
+  run(2)
+  T.sim.isSessionStarted = true; T.sim.timeToSessionStart = -100; run(2)
+  local lead = hudScreen():find('LIDER: MARCAS EL RITMO', 1, true) ~= nil
+  T.cfg.formRadar = false
+  return lead and hudScreen():find('MARCAS EL RITMO', 1, true) == nil
 ''')
 
 scenario('fila doble: cada auto movido se despierta en el motor de fisica', TWO + '''

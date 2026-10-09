@@ -1,6 +1,6 @@
 --[[
   COMISARIO  -  comisario de carrera para Assetto Corsa (app Lua de Custom Shaders Patch)
-  Version 1.5.8  -  offline (contra la IA) y online (con amigos que tengan la app)
+  Version 1.6.0  -  offline (contra la IA) y online (con amigos que tengan la app)
 
   Que hace:
     1. Limites de pista, velocidad en pits y salida en falso.
@@ -22,7 +22,7 @@
   Codigo propio, escrito desde cero. No usa codigo ni archivos de otros plugins.
 ]]
 
-local VERSION = '1.5.8'
+local VERSION = '1.6.0'
 
 -- ---------------------------------------------------------------------------
 -- 1. AJUSTES (se guardan solos entre sesiones)
@@ -68,6 +68,7 @@ local DEFAULTS = {
   formShort = true,        -- salida lanzada corta: los autos parten en fila cerca del final de la vuelta, sin dar la vuelta completa
   formStartM = 500,        -- salida corta: metros antes de la meta donde parte el primero
   formTwoWide = true,      -- salida corta offline: dos filas (1 y 2 lado a lado, 3 y 4 detras...); sin marcar, una sola fila
+  formRadar = true,        -- en la formacion, indicador de distancia al auto de adelante
   gbEnabled = true,        -- pedir que se devuelva la posicion antes de sancionar
   gbSec = 20,              -- segundos para devolverla
   gbPenalty = 1,           -- sancion si no se devuelve
@@ -1828,7 +1829,7 @@ end
 -- donde parte el primero: lo elegido en los ajustes, o un poco mas atras si ahi la pista es curva (ver pickStart)
 FORM2.startMeters = function () return FORM2.start or formStartMeters() end
 
--- Busca donde armar la fila offline: el primer tramo recto entre la distancia elegida y 600 m mas atras. En una
+-- Busca donde armar la fila offline: el primer tramo recto entre la distancia elegida y 400 m mas atras. En una
 -- curva la linea de la IA corta por el piano y los autos quedaban encima de el (Spa, 500 m antes de la meta).
 function FORM2.pickStart(len, n)
   FORM2.start = nil
@@ -1843,7 +1844,7 @@ function FORM2.pickStart(len, n)
   end
   local bestD, bestDev = base, math.huge
   local ok = pcall(function ()
-    for d = base, base + 600, 20 do
+    for d = base, base + 400, 20 do
       if (d + span) / len > 0.9 then break end
       local h0 = heading(d)
       local dev = 0
@@ -2014,6 +2015,18 @@ function RS.aiFollow(dt, f, n)
   local mySlot = f.grid or 1
   local stuck, anyMoving = 0, false
   f.stuckList = {}
+  -- lider de la IA en la salida corta: sube de velocidad de a poco y afloja si la fila se estira, para que el
+  -- pelotón llegue junto a la verde (antes los de adelante se iban a 60 km/h mientras los de atras arrancaban)
+  f.leadCap = nil
+  if f.phase == 'formation' and f.short and #f.order > 1 then
+    local la, lb = ac.getCar(f.order[1]), ac.getCar(f.order[#f.order])
+    local stretch = 0
+    if la and lb then
+      local ideal = (FORM2.spot(#f.order, two)) - (FORM2.spot(1, two))
+      stretch = metersAhead(la, lb) - ideal
+    end
+    f.leadCap = math.floor(math.max(25, math.min(cfg.formSpeed, 30 + (clock - f.startAt) * 3, cfg.formSpeed - math.max(0, stretch - 30) * 0.5)))
+  end
   for p, i in ipairs(f.order) do
     local c = i ~= 0 and not f.freed[i] and ac.getCar(i) or nil
     if c then
@@ -2048,6 +2061,7 @@ function RS.aiFollow(dt, f, n)
         -- antes de la verde nadie pasa del limite; despues, el techo es el auto de delante
         local top = f.phase == 'formation' and cfg.formSpeed or 400
         local cap = top
+        if p == 1 and f.leadCap then cap = f.leadCap end
         if a and not a.isInPitlane then
           local gap = metersAhead(a, c)
           local slack = (two and p == 2) and 3 or 0  -- el segundo de la fila puede quedar a la altura del primero
@@ -2057,7 +2071,7 @@ function RS.aiFollow(dt, f, n)
             cap = math.max(15, math.min(top, a.speedKmh + (gap - want) * 1.5))
           end
         end
-        if not f.cap[i] or math.abs(f.cap[i] - cap) > 1 then
+        if not f.cap[i] or math.abs(f.cap[i] - cap) >= 1 then
           f.cap[i] = cap
           pcall(function () physics.setAITopSpeed(i, cap) end)
         end
@@ -2188,6 +2202,7 @@ local function updateRolling(dt, sim, car, n)
       announce(1, tr('VUELTA DE FORMACIÓN'),
         tr('Mantén tu puesto y no pases de %s km/h. Se larga cuando el líder cruce la meta', cfg.formSpeed), 1)
     end
+    if S.prePlaced or online then RS.pickRadar(f, n) end
     S.flag = { kind = 'yellow', untilTime = clock + 7 }
     return
   end
@@ -3300,7 +3315,87 @@ local function drawHudStart(c)
   ui.drawRectFilled(vec2(x1, by), vec2(x1 + full * math.max(0, math.min(1, speed / top)), by + hs(6)), color, hs(3))
   local mx = x1 + full * (limit / top)
   ui.drawRectFilled(vec2(mx - hs(1), by - hs(3)), vec2(mx + hs(1), by + hs(9)), COL_WHITE)
+  local inForm = f and f.phase == 'formation'
+  if cfg.formRadar and (inForm or (cfg.hudPlace and S.ctl.state == 0)) then
+    if inForm and f.radar == nil and clock - f.startAt > 1.5 then RS.pickRadar(f, ac.getSim().carsCount) end
+    local rh = RS.drawRadar(c, y + h + hs(6), w, f)
+    if rh > 0 then return w, y + h + hs(6) + rh - c.y end
+  end
   return w, y + h - c.y
+end
+
+-- RADAR DE LA FORMACION: distancia al auto que tienes que seguir (el de adelante en tu columna o, si eres el
+-- segundo de una fila doble, el que va a tu lado unos metros delante). La distancia buena es la que tenias al
+-- quedar en la fila, asi sirve igual offline y online, con una o dos filas.
+function RS.pickRadar(f, n)
+  f.radar = false
+  local me = ac.getCar(0)
+  if not me or not f.order then return end
+  local lx, lz = me.look.x, me.look.z
+  local ll = math.sqrt(lx * lx + lz * lz)
+  if ll < 0.01 then return end
+  lx, lz = lx / ll, lz / ll
+  local mySlot = f.grid or 1
+  local best, bestAlong, partner, partnerAlong = nil, math.huge, nil, math.huge
+  for _, j in ipairs(f.order) do
+    local c = j ~= 0 and ac.getCar(j)
+    if c and startSlot(j, n) < mySlot then
+      local dx, dz = c.position.x - me.position.x, c.position.z - me.position.z
+      local along, side = dx * lx + dz * lz, math.abs(dx * lz - dz * lx)
+      if along > 1 and along < 40 then
+        if side < 1.6 then
+          if along < bestAlong then best, bestAlong = j, along end
+        elseif startSlot(j, n) == mySlot - 1 and along < partnerAlong then
+          partner, partnerAlong = j, along
+        end
+      end
+    end
+  end
+  if partner and (not best or partnerAlong < bestAlong) then best = partner end
+  if best then
+    f.radar = { ref = best, want = math.max(3, math.min(20, metersAhead(ac.getCar(best), me))) }
+  end
+end
+
+function RS.drawRadar(c, y, w, f)
+  local car = ac.getCar(0)
+  local gap, want, hint, color
+  if f and f.radar and ac.getCar(f.radar.ref) then
+    gap, want = metersAhead(ac.getCar(f.radar.ref), car), f.radar.want
+  elseif cfg.hudPlace and not (f and f.phase == 'formation') then
+    gap, want = 19, 12
+  elseif f and f.radar == false then
+    gap = nil
+  else
+    return 0
+  end
+  local h = hs(gap and 62 or 34)
+  local soft = cfg.hudBg and P_MUTED or HX.soft
+  panel(c.x, y, w, h, 1)
+  if not gap then
+    txt(tr('LÍDER: MARCAS EL RITMO'), hs(14), c.x + hs(14), y + hs(9), COL_WHITE, true)
+    return h
+  end
+  local lo, hi = math.max(1, want - 3), want + 6
+  if gap < 0 then hint, color = tr('TE ADELANTASTE'), COL_RED
+  elseif gap < lo then hint, color = tr('ABRE ESPACIO'), COL_RED
+  elseif gap > hi then hint, color = tr('ACÉRCATE'), COL_YELLOW
+  else hint, color = tr('BIEN'), COL_GREEN end
+  if cfg.hudBg then ui.drawRectFilled(vec2(c.x, y), vec2(c.x + hs(4), y + h), color) end
+  txt(tr('DISTANCIA AL DE ADELANTE'), hs(12), c.x + hs(14), y + hs(4), soft, true)
+  local num = string.format('%d m', round(math.max(-99, math.min(999, gap))))
+  txt(num, hs(20), c.x + hs(14), y + hs(19), color, true)
+  txt(hint, hs(16), c.x + w - tw(hint, hs(16), true) - hs(12), y + hs(21), color, true)
+  -- barra: rojo muy cerca, verde la distancia buena, gris lejos; la marca blanca es donde estas
+  local x1, full, by = c.x + hs(14), w - hs(28), y + h - hs(14)
+  local range = want * 2 + 15
+  local function xAt(m) return x1 + full * math.max(0, math.min(1, m / range)) end
+  ui.drawRectFilled(vec2(x1, by), vec2(x1 + full, by + hs(6)), P_LINE, hs(3))
+  ui.drawRectFilled(vec2(x1, by), vec2(xAt(lo), by + hs(6)), fade(COL_RED, 0.55), hs(3))
+  ui.drawRectFilled(vec2(xAt(lo), by), vec2(xAt(hi), by + hs(6)), fade(COL_GREEN, 0.7))
+  local mx = xAt(gap)
+  ui.drawRectFilled(vec2(mx - hs(2), by - hs(4)), vec2(mx + hs(2), by + hs(10)), COL_WHITE)
+  return h
 end
 
 function script.windowHudStart(dt)
@@ -3900,7 +3995,9 @@ function W.tabRace(all)
       tr('Los autos parten en fila cerca del final de la vuelta, sin dar la vuelta de formación completa. Online necesita el script del servidor.'))
     if cfg.formShort or all then
       W.slider(tr('El primero parte a'), 'formStartM', 200, 2000, tr('%.0f m de la meta'),
-        tr('Offline, si ahí la pista es curva, la fila se arma en el primer tramo recto más atrás (hasta 600 m).'))
+        tr('Offline, si ahí la pista es curva, la fila se arma en el primer tramo recto más atrás (hasta 400 m).'))
+      W.check(tr('Radar de distancia'), 'formRadar',
+        tr('En la formación, debajo del velocímetro: la distancia al auto que tienes que seguir y si estás muy cerca o muy lejos.'))
       W.check(tr('Dos filas'), 'formTwoWide',
         tr('Los autos parten de a dos, uno al lado del otro y en el orden de la grilla. Vale offline; online lo decide el script del servidor (twoWide). La IA tiende a ponerse en una sola fila al avanzar.'))
     end
@@ -4515,7 +4612,15 @@ EN['Salida corta'] = 'Short start'
 EN['Los autos parten en fila cerca del final de la vuelta, sin dar la vuelta de formación completa. Online necesita el script del servidor.'] = 'The cars start in line near the end of the lap, without a full formation lap. Online it needs the server script.'
 EN['El primero parte a'] = 'The leader starts'
 EN['Dos filas'] = 'Two rows'
-EN['Offline, si ahí la pista es curva, la fila se arma en el primer tramo recto más atrás (hasta 600 m).'] = 'Offline, if the track curves there, the grid is set up on the first straight further back (up to 600 m).'
+EN['Radar de distancia'] = 'Gap radar'
+EN['En la formación, debajo del velocímetro: la distancia al auto que tienes que seguir y si estás muy cerca o muy lejos.'] = 'During the formation, below the speedometer: the gap to the car you have to follow and whether you are too close or too far.'
+EN['LÍDER: MARCAS EL RITMO'] = 'LEADER: SET THE PACE'
+EN['TE ADELANTASTE'] = 'TOO FAR FORWARD'
+EN['ABRE ESPACIO'] = 'BACK OFF'
+EN['ACÉRCATE'] = 'CLOSE UP'
+EN['BIEN'] = 'GOOD'
+EN['DISTANCIA AL DE ADELANTE'] = 'GAP TO CAR AHEAD'
+EN['Offline, si ahí la pista es curva, la fila se arma en el primer tramo recto más atrás (hasta 400 m).'] = 'Offline, if the track curves there, the grid is set up on the first straight further back (up to 400 m).'
 EN['La IA no arrancó en dos filas: se larga en una sola fila'] = 'The AI did not pull away two by two: starting in a single line'
 EN['Los autos parten de a dos, uno al lado del otro y en el orden de la grilla. Vale offline; online lo decide el script del servidor (twoWide). La IA tiende a ponerse en una sola fila al avanzar.'] = 'Cars start two by two, side by side and in grid order. Applies offline; online the server script decides (twoWide). The AI tends to fall into a single line once moving.'
 EN['%.0f m de la meta'] = '%.0f m from the line'

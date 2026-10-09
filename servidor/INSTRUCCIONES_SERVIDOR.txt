@@ -1,4 +1,4 @@
-COMISARIO SERVIDOR 1.11
+COMISARIO SERVIDOR 1.12
 Script online para el servidor (opcional)
 
 El tutorial paso a paso, esta en la pagina del
@@ -91,9 +91,12 @@ adminPass = 'clave'   clave de administrador. Entre comillas simples, sin tildes
                       ni espacios.
 requireApp = 1        quien entre sin la app Comisario activa no pasa de 60 km/h
                       (se dan 30 segundos al entrar para que cargue).
-twoWide = 1           salida corta en dos filas: 1 y 2 lado a lado, 3 y 4 en la
-                      fila siguiente, respetando el orden de la grilla. Es lo que
-                      hace el script si no pones la linea. Con 0, una sola fila.
+twoWide = 1           salida corta en dos filas: 1 y 2 lado a lado (el 2 unos
+                      metros detras), 3 y 4 en la fila siguiente, respetando el
+                      orden de la grilla. Es lo que hace el script si no pones la
+                      linea. Con 0, una sola fila. Si la pista no da para dos autos
+                      en esa zona, va en una sola fila igual. Si ahi la pista es
+                      curva, la fila se arma en el primer tramo recto mas atras.
 language = 'en'       opcional: los mensajes de este script salen en ingles.
                       El idioma de la app lo elige cada piloto en sus ajustes.
 
@@ -111,7 +114,7 @@ codigo largo, no hay que tocar Content Manager; solo reinicia el servidor.
 Con la forma B: se actualiza solo cuando se publica una version nueva aqui.
 
 COMO SABER SI FUNCIONA
-- Al entrar al servidor (en practica) aparece arriba "COMISARIO SERVIDOR 1.11".
+- Al entrar al servidor (en practica) aparece arriba "COMISARIO SERVIDOR 1.12".
   Si no aparece o sale un numero menor, el servidor esta entregando un script
   antiguo: revisa la direccion de SCRIPT.
 - En la ventana Comisario, el panel dice "enlazado con el script del servidor".
