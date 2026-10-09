@@ -1,4 +1,4 @@
-COMISARIO 1.6.3
+COMISARIO 1.6.4
 Comisario de carrera para Assetto Corsa. Offline (contra la IA) y online
 (con amigos que tengan la app instalada).
 
@@ -10,7 +10,7 @@ Tutorial completo (offline, entrar a un servidor y crear uno):
 https://github.com/matipriv768-blip/Comisario
 
 INSTALACION
-1. Arrastra el archivo Comisario-1.6.3.zip a la ventana de Content Manager.
+1. Arrastra el archivo Comisario-1.6.4.zip a la ventana de Content Manager.
 2. Pulsa el icono de las tres rayas (arriba a la derecha) y luego "Install".
 3. Entra a una sesion. Mueve el mouse al borde derecho de la pantalla y abre
    "Comisario" y "Comisario: clasificacion" en la lista de apps.

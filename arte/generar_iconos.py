@@ -1,274 +1,325 @@
-"""Redibuja en vectores los iconos de sancion (estilo placa inclinada con estela) y los exporta en alta resolucion."""
-import asyncio, math, sys
-from playwright.async_api import async_playwright
+"""Iconos y logo del Comisario, estilo senal FIA real: banderas de tela en su asta y placas de comisario.
 
-W, H = 640, 440          # lienzo de cada icono
-TL, TR, BR, BL = (205, 60), (600, 60), (490, 360), (95, 360)   # placa inclinada
+Dibuja cada imagen en SVG, la renderiza con Chromium (Playwright) y guarda los PNG.
+Uso: python3 arte/generar_iconos.py carpeta_salida carpeta_de_la_letra
+La letra: npm install @fontsource/barlow-condensed (carpeta node_modules/@fontsource/barlow-condensed/files).
+Despues se copian a apps/lua/Comisario/img en 320x220 y se hacen los chicos: python3 arte/reducir_iconos.py carpeta_salida apps/lua/Comisario/img
+"""
+import base64
+import math
+import os
+import sys
 
-PAL = {
-    'yellow': dict(a='#FFE83A', b='#F2B705', c='#C98A00', s1='#FFD21A', s2='#FF8A00'),
-    'orange': dict(a='#FF9A2E', b='#F36A0A', c='#C44A00', s1='#FF8A1E', s2='#E0195A'),
-    'red':    dict(a='#F2434B', b='#D11A22', c='#8E0D14', s1='#F0323A', s2='#B0126A'),
-    'black':  dict(a='#5A5D63', b='#2A2C30', c='#0E0F11', s1='#3A3C42', s2='#5A1A8A'),
-    'green':  dict(a='#3FD45A', b='#16A534', c='#0A6E20', s1='#2FC24A', s2='#0E7A3A'),
+from playwright.sync_api import sync_playwright
+
+OUT = sys.argv[1] if len(sys.argv) > 1 else 'out'
+FONTS = sys.argv[2] if len(sys.argv) > 2 else 'fonts'
+W, H = 640, 440
+
+RED, ORANGE, GREEN = '#D3141C', '#EE7A00', '#11994A'
+
+
+def font_face():
+    css = []
+    for weight, style in ((800, 'normal'), (900, 'normal'), (800, 'italic'), (900, 'italic')):
+        path = os.path.join(FONTS, 'barlow-condensed-latin-%d-%s.woff2' % (weight, style))
+        data = base64.b64encode(open(path, 'rb').read()).decode()
+        css.append("@font-face{font-family:'BC';font-weight:%d;font-style:%s;src:url(data:font/woff2;base64,%s) format('woff2');}"
+                   % (weight, style, data))
+    return '\n'.join(css)
+
+
+# ---------------------------------------------------------------------------------------------- banderas
+def pole_x(y):
+    # asta levemente inclinada: arriba en x=150, abajo en x=120
+    return 150 - 30 * (y - 22) / 400
+
+
+def flag_path():
+    a, b = (pole_x(36), 36), (pole_x(272), 272)
+    return ('M{ax:.1f},{ay} C250,0 350,70 452,34 C520,10 576,18 614,44 '
+            'C626,120 606,200 612,290 C556,262 498,262 440,292 C350,336 248,262 {bx:.1f},{by} Z').format(
+        ax=a[0], ay=a[1], bx=b[0], by=b[1])
+
+
+FOLDS = [(0.00, '#000', 0.30), (0.10, '#fff', 0.22), (0.24, '#000', 0.34), (0.40, '#fff', 0.26),
+         (0.55, '#000', 0.30), (0.70, '#fff', 0.20), (0.86, '#000', 0.30), (1.00, '#fff', 0.10)]
+
+
+def flag_fill(kind, uid):
+    """Contenido de la tela (sin sombras), en el cuadro 120..620 x 0..340."""
+    solid = {'green': '#13A14A', 'yellow': '#FFD400', 'blue': '#1E6FE0', 'white': '#F2F2EE',
+             'black': '#121214', 'red': '#D5131B'}
+    if kind in solid:
+        return '<rect x="100" y="-10" width="540" height="360" fill="%s"/>' % solid[kind]
+    if kind == 'check':
+        s = 48
+        cells = ['<rect x="100" y="-10" width="540" height="360" fill="#F4F4F0"/>']
+        for r in range(-1, 8):
+            for c in range(-1, 12):
+                if (r + c) % 2 == 0:
+                    cells.append('<rect x="%d" y="%d" width="%d" height="%d" fill="#111"/>' % (140 + c * s, 20 + r * s, s, s))
+        return '\n'.join(cells)
+    if kind == 'warn':
+        # blanca y negra dividida en diagonal: aviso por conducta antideportiva
+        return ('<rect x="100" y="-10" width="540" height="360" fill="#F4F4F0"/>'
+                '<polygon points="100,-10 100,350 640,350" fill="#111"/>')
+    raise ValueError(kind)
+
+
+def flag(kind, uid, transform=''):
+    edge = '#ffffff' if kind == 'black' else '#000000'
+    edge_op = 0.45 if kind == 'black' else 0.35
+    hl = {'red': 0.45, 'blue': 0.6, 'green': 0.75}.get(kind, 1.0)   # brillo de los pliegues: menos en telas saturadas
+    stops = ''.join('<stop offset="%.2f" stop-color="%s" stop-opacity="%.2f"/>' % (o, c, a * (hl if c == '#fff' else 1))
+                    for o, c, a in FOLDS)
+    return f'''
+<g transform="{transform}">
+  <defs>
+    <clipPath id="fc{uid}"><path d="{flag_path()}"/></clipPath>
+    <linearGradient id="fo{uid}" gradientUnits="userSpaceOnUse" x1="150" y1="0" x2="615" y2="40">{stops}</linearGradient>
+    <linearGradient id="fv{uid}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.18"/><stop offset="0.45" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.22"/>
+    </linearGradient>
+    <filter id="tx{uid}" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="4"/>
+      <feColorMatrix values="0 0 0 0 0.5  0 0 0 0 0.5  0 0 0 0 0.5  0 0 0 0.10 0"/>
+    </filter>
+    <filter id="wv{uid}" x="-10%" y="-10%" width="120%" height="120%">
+      <feTurbulence type="turbulence" baseFrequency="0.0035 0.009" numOctaves="1" seed="7" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="26" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+    <filter id="sh{uid}" x="-20%" y="-20%" width="140%" height="160%">
+      <feDropShadow dx="7" dy="12" stdDeviation="9" flood-color="#000" flood-opacity="0.5"/>
+    </filter>
+    <linearGradient id="pl{uid}" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#2a2c30"/><stop offset="0.35" stop-color="#9aa0a8"/><stop offset="0.55" stop-color="#e6e9ee"/>
+      <stop offset="1" stop-color="#3a3d42"/>
+    </linearGradient>
+    <radialGradient id="kn{uid}" cx="0.35" cy="0.35" r="0.7">
+      <stop offset="0" stop-color="#fff"/><stop offset="0.5" stop-color="#b9bec6"/><stop offset="1" stop-color="#4a4e55"/>
+    </radialGradient>
+  </defs>
+  <g filter="url(#sh{uid})">
+    <g filter="url(#wv{uid})">
+      <g clip-path="url(#fc{uid})">
+        {flag_fill(kind, uid)}
+        <rect x="100" y="-10" width="540" height="360" fill="url(#fo{uid})"/>
+        <rect x="100" y="-10" width="540" height="360" fill="url(#fv{uid})"/>
+        <rect x="100" y="-10" width="540" height="360" filter="url(#tx{uid})"/>
+      </g>
+      <path d="{flag_path()}" fill="none" stroke="{edge}" stroke-opacity="{edge_op}" stroke-width="3"/>
+    </g>
+    <polygon points="{pole_x(22) - 8:.1f},22 {pole_x(22) + 8:.1f},22 {pole_x(424) + 8:.1f},424 {pole_x(424) - 8:.1f},424"
+      fill="url(#pl{uid})"/>
+    <circle cx="{pole_x(18):.1f}" cy="18" r="13" fill="url(#kn{uid})"/>
+  </g>
+</g>'''
+
+
+def crossed(left, right, uid, cx, cy, s, d, ang=18):
+    """Dos banderas cruzadas: las astas se juntan abajo y las telas salen hacia afuera."""
+    base = 'rotate(%g) scale(%g) translate(-120 -424)' % (ang, s)
+    return (flag(left, uid + 'l', 'translate(%g %g) scale(-1 1) %s' % (cx + d, cy, base))
+            + flag(right, uid + 'r', 'translate(%g %g) %s' % (cx - d, cy, base)))
+
+
+# ---------------------------------------------------------------------------------------------- placas
+def board(uid, border, inner, x=105, y=26, w=430, h=290, rot=-4, handle=True):
+    cx, cy = x + w / 2, y + h / 2
+    hx = cx - 26
+    handle_svg = f'''
+    <rect x="{hx}" y="{y + h - 6}" width="52" height="{424 - (y + h)}" rx="10" fill="url(#hd{uid})"/>
+    <rect x="{hx + 6}" y="{y + h + 40}" width="40" height="6" rx="3" fill="#000" opacity="0.35"/>
+    <rect x="{hx + 6}" y="{y + h + 58}" width="40" height="6" rx="3" fill="#000" opacity="0.35"/>''' if handle else ''
+    screws = ''.join('<circle cx="%d" cy="%d" r="6" fill="url(#sc%s)"/>' % (px, py, uid)
+                     for px, py in ((x + 26, y + 26), (x + w - 26, y + 26), (x + 26, y + h - 26), (x + w - 26, y + h - 26)))
+    return f'''
+<g transform="rotate({rot} {cx} {cy})">
+  <defs>
+    <filter id="bs{uid}" x="-20%" y="-20%" width="140%" height="160%">
+      <feDropShadow dx="7" dy="12" stdDeviation="9" flood-color="#000" flood-opacity="0.55"/>
+    </filter>
+    <linearGradient id="bf{uid}" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0" stop-color="#ffffff"/><stop offset="0.6" stop-color="#eeeeea"/><stop offset="1" stop-color="#d9d9d4"/>
+    </linearGradient>
+    <linearGradient id="bg{uid}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.35"/><stop offset="0.5" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="hd{uid}" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#15161a"/><stop offset="0.45" stop-color="#4a4d54"/><stop offset="1" stop-color="#15161a"/>
+    </linearGradient>
+    <radialGradient id="sc{uid}" cx="0.35" cy="0.35" r="0.7">
+      <stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#7b8088"/>
+    </radialGradient>
+    <filter id="bt{uid}" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="11"/>
+      <feColorMatrix values="0 0 0 0 0.5  0 0 0 0 0.5  0 0 0 0 0.5  0 0 0 0.07 0"/>
+    </filter>
+  </defs>
+  <g filter="url(#bs{uid})">
+    {handle_svg}
+    <rect x="{x}" y="{y}" width="{w}" height="{h}" rx="24" fill="{border}"/>
+    <rect x="{x + 22}" y="{y + 22}" width="{w - 44}" height="{h - 44}" rx="12" fill="url(#bf{uid})"/>
+    <rect x="{x}" y="{y}" width="{w}" height="{h}" rx="24" filter="url(#bt{uid})"/>
+    <rect x="{x}" y="{y}" width="{w}" height="{h}" rx="24" fill="url(#bg{uid})"/>
+    <rect x="{x + 1.5}" y="{y + 1.5}" width="{w - 3}" height="{h - 3}" rx="23" fill="none" stroke="#000" stroke-opacity="0.45" stroke-width="3"/>
+    {screws}
+    <g transform="translate({cx} {cy})">{inner}</g>
+  </g>
+</g>'''
+
+
+def text(t, size, color='#111', dy=0, weight=900, spacing=0):
+    return ('<text x="0" y="{dy}" text-anchor="middle" dominant-baseline="central" font-family="BC" font-weight="{w}" '
+            'font-size="{s}" letter-spacing="{sp}" fill="{c}">{t}</text>').format(dy=dy, w=weight, s=size, sp=spacing, c=color, t=t)
+
+
+def check_mark(color):
+    return '<path d="M-110,-6 L-40,64 L112,-88" fill="none" stroke="%s" stroke-width="46" stroke-linecap="round" stroke-linejoin="round"/>' % color
+
+
+def stopwatch():
+    return '''
+<g transform="translate(36 10)">
+  <rect x="-18" y="-128" width="36" height="26" rx="6" fill="#111"/>
+  <rect x="-8" y="-108" width="16" height="22" fill="#111"/>
+  <rect x="62" y="-92" width="22" height="34" rx="6" fill="#111" transform="rotate(45 73 -75)"/>
+  <circle cx="0" cy="0" r="92" fill="#111"/>
+  <circle cx="0" cy="0" r="70" fill="#fff"/>
+  <path d="M0,0 L0,-70 A70,70 0 0,1 60.6,35 Z" fill="#EE7A00"/>
+  <circle cx="0" cy="0" r="12" fill="#111"/>
+  <path d="M0,0 L44,-44" stroke="#111" stroke-width="12" stroke-linecap="round"/>
+</g>
+<path d="M-150,10 h64 M-118,-22 v64" stroke="#111" stroke-width="22" stroke-linecap="round"/>'''
+
+
+def lift_pictogram():
+    # pie que se levanta del pedal del acelerador
+    return '''
+<g transform="translate(-40 30) rotate(-18)">
+  <rect x="-50" y="-30" width="100" height="150" rx="16" fill="#111"/>
+  <g fill="#fff"><rect x="-32" y="-12" width="64" height="12" rx="4"/><rect x="-32" y="14" width="64" height="12" rx="4"/>
+  <rect x="-32" y="40" width="64" height="12" rx="4"/><rect x="-32" y="66" width="64" height="12" rx="4"/>
+  <rect x="-32" y="92" width="64" height="12" rx="4"/></g>
+</g>
+<path d="M88,90 L88,-70" stroke="#111" stroke-width="30" stroke-linecap="round"/>
+<path d="M30,-30 L88,-100 L146,-30" fill="none" stroke="#111" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>'''
+
+
+def swap_arrows():
+    return '''
+<g fill="none" stroke="#111" stroke-width="30" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M-140,-45 H110"/><path d="M60,-95 L118,-45 L60,5"/>
+  <path d="M140,55 H-110"/><path d="M-60,5 L-118,55 L-60,105"/>
+</g>'''
+
+
+ICONS = {
+    'bandera_verde': lambda: flag('green', 'a'),
+    'bandera_amarilla': lambda: flag('yellow', 'a'),
+    'bandera_azul': lambda: flag('blue', 'a'),
+    'bandera_blanca': lambda: flag('white', 'a'),
+    'bandera_negra': lambda: flag('black', 'a'),
+    'bandera_roja': lambda: flag('red', 'a'),
+    'bandera_cuadros': lambda: flag('check', 'a'),
+    'aviso': lambda: flag('warn', 'a'),
+    # amarilla total: dos amarillas agitadas, cruzadas
+    'bandera_amarilla_total': lambda: crossed('yellow', 'yellow', 'y', 320, 350, 0.62, 36, 13),
+    'drive_through': lambda: board('d', RED, text('DT', 250, dy=8)),
+    'stop_and_go': lambda: board('s', RED, text('SG', 250, dy=8)),
+    'descalificado': lambda: (flag('black', 'a', 'translate(-10 0) scale(0.92)')
+                              + board('q', RED, text('DSQ', 150, dy=6), x=300, y=170, w=300, h=200, rot=5, handle=False)),
+    'levantar': lambda: board('l', ORANGE, lift_pictogram()),
+    'devolver': lambda: board('g', ORANGE, swap_arrows()),
+    'tiempo': lambda: board('t', ORANGE, stopwatch()),
+    'cumplida': lambda: board('c', GREEN, check_mark(GREEN)),
 }
 
-def pts(*p): return ' '.join('%g,%g' % q for q in p)
 
-def streaks(pal, uid):
-    # puntas de velocidad a la izquierda: salen desde el borde izquierdo inclinado de la placa
-    out = []
-    rows = [(78, 150, 13), (104, 95, 9), (128, 175, 15), (156, 120, 10), (182, 200, 16), (210, 110, 9),
-            (236, 185, 15), (264, 130, 11), (290, 205, 16), (318, 105, 9), (342, 160, 13)]
-    for y, length, th in rows:
-        t = (y - TL[1]) / (BL[1] - TL[1])
-        x_edge = TL[0] + (BL[0] - TL[0]) * t + 26          # un poco dentro de la placa
-        x0 = x_edge - length - 26
-        out.append('<polygon points="%s" fill="url(#st%s)"/>' % (pts((x0, y), (x_edge, y - th / 2), (x_edge, y + th / 2)), uid))
-    return '\n'.join(out)
-
-def plate(color, uid):
-    p = PAL[color]
-    off = 16
-    sh = [(q[0] + off, q[1] + off) for q in (TL, TR, BR, BL)]
+# ---------------------------------------------------------------------------------------------- logo
+def app_icon():
+    # icono chico de la ventana (64 px): mismo medallon, banderas mas grandes y anillos finos para que se lean
     return f'''
 <defs>
-  <linearGradient id="pg{uid}" x1="0" y1="0" x2="1" y2="1">
-    <stop offset="0" stop-color="{p['a']}"/><stop offset="0.55" stop-color="{p['b']}"/><stop offset="1" stop-color="{p['c']}"/>
+  <radialGradient id="ig" cx="0.5" cy="0.38" r="0.75"><stop offset="0" stop-color="#30333a"/><stop offset="1" stop-color="#0b0c0e"/></radialGradient>
+  <linearGradient id="ir" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff3b42"/><stop offset="1" stop-color="#a50a10"/></linearGradient>
+  <clipPath id="ic"><circle cx="256" cy="256" r="236"/></clipPath>
+</defs>
+<circle cx="256" cy="256" r="250" fill="url(#ir)"/>
+<circle cx="256" cy="256" r="222" fill="url(#ig)"/>
+<g clip-path="url(#ic)">{crossed('check', 'warn', 'xi', 256, 392, 0.56, 40, 14)}</g>'''
+
+
+def roundel(uid, with_ring=True):
+    # medallon: dos banderas cruzadas (aviso y cuadros) sobre fondo oscuro
+    return f'''
+<defs>
+  <radialGradient id="rg{uid}" cx="0.5" cy="0.38" r="0.75">
+    <stop offset="0" stop-color="#2c2f36"/><stop offset="1" stop-color="#0b0c0e"/>
+  </radialGradient>
+  <linearGradient id="rr{uid}" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#ff3b42"/><stop offset="1" stop-color="#a50a10"/>
   </linearGradient>
-  <linearGradient id="st{uid}" x1="0" y1="0" x2="1" y2="0">
-    <stop offset="0" stop-color="{p['s2']}" stop-opacity="0.0"/><stop offset="0.35" stop-color="{p['s2']}" stop-opacity="0.85"/>
-    <stop offset="1" stop-color="{p['s1']}"/>
-  </linearGradient>
-  <linearGradient id="gl{uid}" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.34"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
-  </linearGradient>
-  <pattern id="cf{uid}" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-    <rect width="12" height="12" fill="#17181B"/><rect width="6" height="6" fill="#2B2D32"/><rect x="6" y="6" width="6" height="6" fill="#2B2D32"/>
-  </pattern>
-  <clipPath id="cp{uid}"><polygon points="{pts(TL, TR, BR, BL)}"/></clipPath>
-  <filter id="ds{uid}" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="7"/></filter>
-  <filter id="sy{uid}" x="-20%" y="-20%" width="140%" height="140%">
-    <feDropShadow dx="3" dy="5" stdDeviation="4" flood-color="#000" flood-opacity="0.35"/>
+  <filter id="rs{uid}" x="-20%" y="-20%" width="140%" height="140%">
+    <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#000" flood-opacity="0.55"/>
   </filter>
 </defs>
-<polygon points="{pts(*[(q[0] + 8, q[1] + 12) for q in sh])}" fill="#000" opacity="0.28" filter="url(#ds{uid})"/>
-{streaks(p, uid)}
-<polygon points="{pts(*sh)}" fill="url(#cf{uid})"/>
-<polygon points="{pts(*sh)}" fill="none" stroke="#000" stroke-opacity="0.5" stroke-width="2"/>
-<polygon points="{pts(TL, TR, BR, BL)}" fill="url(#pg{uid})"/>
-<g clip-path="url(#cp{uid})">
-  <polygon points="{pts((TL[0] - 40, TL[1]), (TR[0], TR[1]), (TR[0] - 48, TR[1] + 130), (TL[0] - 88, TL[1] + 130))}" fill="url(#gl{uid})"/>
+<g filter="url(#rs{uid})">
+  <circle cx="256" cy="256" r="236" fill="url(#rr{uid})"/>
+  <circle cx="256" cy="256" r="214" fill="#f2f2ee"/>
+  <circle cx="256" cy="256" r="200" fill="url(#rg{uid})"/>
 </g>
-<polygon points="{pts(TL, TR, BR, BL)}" fill="none" stroke="#FFFFFF" stroke-opacity="0.85" stroke-width="3.5" stroke-linejoin="round"/>
-<polyline points="{pts(BL, BR, TR)}" fill="none" stroke="#000" stroke-opacity="0.28" stroke-width="3.5" stroke-linejoin="round"/>
-'''
-
-CX, CY = 348, 210   # centro visual de la placa
-
-def sym(body, uid, skew=-10):
-    return f'<g filter="url(#sy{uid})" transform="translate({CX} {CY}) skewX({skew})">{body}</g>'
-
-def s_warning():
-    return '<polygon points="-24,-112 24,-112 13,34 -13,34" fill="#fff"/><rect x="-19" y="58" width="38" height="38" rx="5" fill="#fff"/>'
-
-def s_time():
-    return ('<circle cx="0" cy="14" r="78" fill="none" stroke="#fff" stroke-width="22"/>'
-            '<rect x="-17" y="-112" width="34" height="34" rx="5" fill="#fff"/>'
-            '<rect x="-34" y="-124" width="68" height="20" rx="8" fill="#fff"/>'
-            '<rect x="58" y="-84" width="34" height="20" rx="6" fill="#fff" transform="rotate(42 75 -74)"/>'
-            '<line x1="0" y1="14" x2="34" y2="-30" stroke="#fff" stroke-width="15" stroke-linecap="round"/>'
-            '<circle cx="0" cy="14" r="14" fill="#fff"/>')
-
-def s_lift(color):
-    hole = PAL[color]['b']
-    holes = ''.join('<circle cx="%d" cy="%d" r="11" fill="%s"/>' % (x, y, hole) for y in (-66, -22, 22, 66) for x in (-76, -34))
-    return ('<rect x="-106" y="-104" width="102" height="208" rx="18" fill="#fff" transform="rotate(4 -55 0)"/>' +
-            '<g transform="rotate(4 -55 0)">' + holes + '</g>' +
-            '<polygon points="66,-108 122,-34 88,-34 88,96 44,96 44,-34 10,-34" fill="#fff"/>')
-
-def s_dt():
-    # pista en perspectiva con linea central punteada y una flecha que sale hacia el costado
-    road = ('<polygon points="-112,96 -72,-100 -44,-100 -52,96" fill="#fff"/>'
-            '<polygon points="-22,96 -30,-100 -2,-100 38,96" fill="#fff"/>'
-            '<rect x="-42" y="52" width="10" height="40" fill="#fff"/><rect x="-42" y="-12" width="10" height="40" fill="#fff"/>'
-            '<rect x="-42" y="-76" width="10" height="40" fill="#fff"/>')
-    arrow = ('<path d="M 62 96 L 62 20 Q 62 -34 112 -34" fill="none" stroke="#fff" stroke-width="30" stroke-linejoin="round"/>'
-             '<polygon points="104,-84 162,-34 104,16" fill="#fff"/>')
-    return road + arrow
-
-def s_stop():
-    # mano abierta de "alto": cuatro dedos separados, el del medio mas largo, palma redondeada y pulgar abierto
-    fw, gap = 33, 9
-    x0 = -(4 * fw + 3 * gap) / 2 + 8
-    tops = (-98, -120, -108, -78)
-    fingers = ''.join('<rect x="%g" y="%g" width="%g" height="%g" rx="%g" fill="#fff"/>' % (x0 + n * (fw + gap), top, fw, 40 - top, fw / 2)
-                      for n, top in enumerate(tops))
-    left, right = x0, x0 + 4 * fw + 3 * gap
-    palm = ('<path d="M %g 6 H %g V 46 C %g 96 %g 116 %g 116 H %g C %g 116 %g 100 %g 70 L %g 30 Z" fill="#fff"/>'
-            % (left, right, right, right - 28, right - 62, left + 46, left + 22, left + 6, left - 6, left))
-    # pulgar: nace en el costado bajo de la palma y abre hacia afuera
-    thumb = ('<path d="M %g 44 C %g 30 %g 6 %g -6 C %g -16 %g -12 %g 2 C %g 26 %g 58 %g 92 Z" fill="#fff"/>'
-             % (left + 4, left - 22, left - 44, left - 58, left - 72, left - 86, left - 80, left - 66, left - 36, left + 10))
-    return fingers + palm + thumb
-
-def s_swap():
-    top = ('<path d="M -104 -6 Q -104 -62 -40 -62 L 44 -62" fill="none" stroke="#fff" stroke-width="32"/>'
-           '<polygon points="34,-118 116,-62 34,-6" fill="#fff"/>')
-    bot = ('<path d="M 104 6 Q 104 62 40 62 L -44 62" fill="none" stroke="#fff" stroke-width="32"/>'
-           '<polygon points="-34,6 -116,62 -34,118" fill="#fff"/>')
-    return top + bot
-
-def s_dq():
-    bar = '<rect x="-112" y="-21" width="224" height="42" rx="8" fill="#F0222C"/>'
-    return '<g transform="rotate(45)">%s</g><g transform="rotate(-45)">%s</g>' % (bar, bar)
-
-def s_ok():
-    return '<polyline points="-98,6 -32,74 106,-84" fill="none" stroke="#fff" stroke-width="44" stroke-linecap="butt" stroke-linejoin="miter"/>'
-
-ICONS = [
-    ('aviso', 'yellow', s_warning()), ('tiempo', 'orange', s_time()), ('levantar', 'orange', s_lift('orange')),
-    ('drive_through', 'red', s_dt()), ('stop_and_go', 'red', s_stop()), ('devolver', 'orange', s_swap()),
-    ('descalificado', 'black', s_dq()), ('cumplida', 'green', s_ok()),
-]
-
-def icon_svg(name, color, body, uid):
-    return plate(color, uid) + sym(body, uid)
-
-def single(name, color, body):
-    return f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">{icon_svg(name, color, body, "a")}</svg>'
-
-def sheet(bg):
-    cols, gapx, gapy, mx, my = 4, 60, 70, 80, 90
-    sw, shh = mx * 2 + cols * W + (cols - 1) * gapx, my * 2 + 2 * H + gapy
-    parts = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{sw}" height="{shh}" viewBox="0 0 {sw} {shh}">']
-    if bg: parts.append(f'<rect width="{sw}" height="{shh}" fill="{bg}"/>')
-    for n, (name, color, body) in enumerate(ICONS):
-        x, y = mx + (n % cols) * (W + gapx), my + (n // cols) * (H + gapy)
-        parts.append(f'<g transform="translate({x} {y})">{icon_svg(name, color, body, str(n))}</g>')
-    parts.append('</svg>')
-    return ''.join(parts), sw, shh
+{crossed('check', 'warn', 'x' + uid, 256, 300, 0.5, 52)}'''
 
 
-# ---------------------------------------------------------------- banderas (misma familia que las sanciones)
-FPAL = {
-    'green':  dict(a='#3DDB5C', b='#12A632', c='#0A6B1F', s1='#19B43A', s2='#0B5A1C'),
-    'yellow': dict(a='#FFF05A', b='#FFD800', c='#D9A400', s1='#FFD800', s2='#FF9A00'),
-    'red':    dict(a='#FF5A5F', b='#E01219', c='#96080D', s1='#E8151C', s2='#8A0A10'),
-    'blue':   dict(a='#4C8DFF', b='#0E4FE0', c='#082E96', s1='#1658E8', s2='#081F7A'),
-    'white':  dict(a='#FFFFFF', b='#EDEFF2', c='#B9BEC6', s1='#F2F4F7', s2='#8D949E'),
-    'black':  dict(a='#4A4D53', b='#1B1D20', c='#060607', s1='#8A8E96', s2='#4A4D53'),
-}
-
-def flag_one(color, uid, dx=0, check=False, with_streaks=True):
-    p = FPAL[color]
-    P = [(q[0] + dx, q[1]) for q in (TL, TR, BR, BL)]
-    tl, tr, br, bl = P
-    off = 16
-    sh = [(q[0] + off, q[1] + off) for q in P]
-    st = ''
-    if with_streaks:
-        rows = [(92, 150, 20), (150, 110, 15), (208, 190, 22), (268, 125, 16), (326, 170, 20)]
-        for y, length, th in rows:
-            t = (y - TL[1]) / (BL[1] - TL[1])
-            xe = TL[0] + dx + (BL[0] - TL[0]) * t + 30
-            st += '<polygon points="%s" fill="url(#fs%s)"/>' % (pts((xe - length - 30, y), (xe, y - th / 2), (xe, y + th / 2)), uid)
-    cloth = ''
-    if check:
-        # cuadros inclinados igual que la placa
-        k = (TL[0] - BL[0]) / (BL[1] - TL[1])
-        cols, rws = 6, 4
-        cw, ch = (tr[0] - tl[0]) / cols, (bl[1] - tl[1]) / rws
-        for r in range(rws):
-            for c in range(cols):
-                if (r + c) % 2 == 0:
-                    y0, y1 = tl[1] + r * ch, tl[1] + (r + 1) * ch
-                    x0 = tl[0] + c * cw
-                    cloth += '<polygon points="%s" fill="#111214"/>' % pts(
-                        (x0 - k * (y0 - tl[1]), y0), (x0 + cw - k * (y0 - tl[1]), y0),
-                        (x0 + cw - k * (y1 - tl[1]), y1), (x0 - k * (y1 - tl[1]), y1))
-    # pliegues de tela: bandas suaves claras y oscuras
-    folds = ''
-    for fx, wdt, op, col in ((0.16, 60, 0.20, '#fff'), (0.40, 70, 0.16, '#000'), (0.62, 60, 0.18, '#fff'), (0.86, 70, 0.16, '#000')):
-        x = tl[0] + (tr[0] - tl[0]) * fx
-        folds += '<polygon points="%s" fill="%s" opacity="%g" filter="url(#fb%s)"/>' % (
-            pts((x, tl[1] - 10), (x + wdt, tl[1] - 10), (x + wdt - 150, bl[1] + 10), (x - 150, bl[1] + 10)), col, op, uid)
-    return f"""
+def logo_svg():
+    return f'''
+{roundel('L')}
 <defs>
-  <linearGradient id="fg{uid}" x1="0" y1="0" x2="1" y2="1">
-    <stop offset="0" stop-color="{p['a']}"/><stop offset="0.5" stop-color="{p['b']}"/><stop offset="1" stop-color="{p['c']}"/>
+  <linearGradient id="bn" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#ff3b42"/><stop offset="1" stop-color="#b30c12"/>
   </linearGradient>
-  <linearGradient id="fs{uid}" x1="0" y1="0" x2="1" y2="0">
-    <stop offset="0" stop-color="{p['s2']}" stop-opacity="0"/><stop offset="0.3" stop-color="{p['s2']}" stop-opacity="0.9"/>
-    <stop offset="1" stop-color="{p['s1']}"/>
-  </linearGradient>
-  <linearGradient id="fm{uid}" x1="0" y1="0" x2="1" y2="1">
-    <stop offset="0" stop-color="#FFFFFF"/><stop offset="0.35" stop-color="#B9BEC6"/><stop offset="0.6" stop-color="#F4F5F7"/>
-    <stop offset="1" stop-color="#7C828C"/>
-  </linearGradient>
-  <pattern id="fc{uid}" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-    <rect width="12" height="12" fill="#17181B"/><rect width="6" height="6" fill="#2B2D32"/><rect x="6" y="6" width="6" height="6" fill="#2B2D32"/>
-  </pattern>
-  <clipPath id="fp{uid}"><polygon points="{pts(*P)}"/></clipPath>
-  <filter id="fb{uid}" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="16"/></filter>
-  <filter id="fd{uid}" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="7"/></filter>
+  <filter id="bns" x="-10%" y="-30%" width="120%" height="160%">
+    <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#000" flood-opacity="0.6"/>
+  </filter>
 </defs>
-<polygon points="{pts(*[(q[0] + 8, q[1] + 12) for q in sh])}" fill="#000" opacity="0.28" filter="url(#fd{uid})"/>
-{st}
-<polygon points="{pts(*sh)}" fill="url(#fc{uid})"/>
-<polygon points="{pts(*P)}" fill="url(#fg{uid})"/>
-<g clip-path="url(#fp{uid})">{cloth}{folds}</g>
-<polygon points="{pts(*P)}" fill="none" stroke="url(#fm{uid})" stroke-width="11" stroke-linejoin="miter"/>
-<polygon points="{pts(*P)}" fill="none" stroke="#000" stroke-opacity="0.35" stroke-width="1.5"/>
-"""
+<g filter="url(#bns)">
+  <polygon points="22,318 500,318 476,402 0,402" fill="#0b0c0e"/>
+  <polygon points="34,326 488,326 466,394 12,394" fill="url(#bn)"/>
+</g>
+<text x="248" y="362" text-anchor="middle" dominant-baseline="central" font-family="BC" font-style="italic" font-weight="900"
+  font-size="86" letter-spacing="2" fill="#fff" stroke="#0b0c0e" stroke-width="3" paint-order="stroke">COMISARIO</text>
+<text x="256" y="440" text-anchor="middle" dominant-baseline="central" font-family="BC" font-weight="800"
+  font-size="30" letter-spacing="7" fill="#f2f2ee" stroke="#0b0c0e" stroke-width="6" paint-order="stroke">RACE STEWARD</text>'''
 
-def flag_svg(kind, uid):
-    if kind == 'fcy':   # amarilla total: dos banderas amarillas, una detras de la otra
-        return flag_one('yellow', uid + 'a', dx=-34) + flag_one('yellow', uid + 'b', dx=34, with_streaks=False)
-    if kind == 'check':
-        return flag_one('white', uid, check=True)
-    return flag_one(kind, uid)
 
-FLAGS = [('verde', 'green'), ('amarilla', 'yellow'), ('amarilla_total', 'fcy'), ('roja', 'red'),
-         ('azul', 'blue'), ('blanca', 'white'), ('cuadros', 'check'), ('negra', 'black')]
+def page(svg, w, h):
+    return f'''<!doctype html><html><head><style>{font_face()} html,body{{margin:0;background:transparent}}</style></head>
+<body><svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">{svg}</svg></body></html>'''
 
-def flag_single(kind):
-    return f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">{flag_svg(kind, "f")}</svg>'
 
-def flag_sheet(bg):
-    cols, gapx, gapy, mx, my = 4, 60, 70, 80, 90
-    sw, shh = mx * 2 + cols * W + (cols - 1) * gapx, my * 2 + 2 * H + gapy
-    parts = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{sw}" height="{shh}" viewBox="0 0 {sw} {shh}">']
-    if bg: parts.append(f'<rect width="{sw}" height="{shh}" fill="{bg}"/>')
-    for n, (name, kind) in enumerate(FLAGS):
-        x, y = mx + (n % cols) * (W + gapx), my + (n // cols) * (H + gapy)
-        parts.append(f'<g transform="translate({x} {y})">{flag_svg(kind, "f" + str(n))}</g>')
-    parts.append('</svg>')
-    return ''.join(parts), sw, shh
+def main():
+    os.makedirs(OUT, exist_ok=True)
+    with sync_playwright() as p:
+        b = p.chromium.launch()
+        pg = b.new_page(device_scale_factor=2)
+        for name, fn in ICONS.items():
+            pg.set_viewport_size({'width': W, 'height': H})
+            pg.set_content(page(fn(), W, H))
+            pg.wait_for_timeout(150)
+            pg.locator('svg').screenshot(path=os.path.join(OUT, name + '.png'), omit_background=True)
+        pg.set_viewport_size({'width': 512, 'height': 512})
+        pg.set_content(page(logo_svg(), 512, 512))
+        pg.wait_for_timeout(150)
+        pg.locator('svg').screenshot(path=os.path.join(OUT, 'logo.png'), omit_background=True)
+        pg.set_content(page(app_icon(), 512, 512))
+        pg.wait_for_timeout(150)
+        pg.locator('svg').screenshot(path=os.path.join(OUT, 'emblema.png'), omit_background=True)
+        b.close()
+    print('listo', len(ICONS) + 2)
 
-async def render(page, svg, w, h, scale, out):
-    await page.set_viewport_size({'width': w, 'height': h})
-    await page.set_content('<html><body style="margin:0;background:transparent">%s</body></html>' % svg)
-    await page.screenshot(path=out, omit_background=True, clip={'x': 0, 'y': 0, 'width': w, 'height': h}, scale='device')
 
-async def main():
-    outdir = sys.argv[1]
-    async with async_playwright() as p:
-        b = await p.chromium.launch()
-        ctx = await b.new_context(device_scale_factor=2)
-        page = await ctx.new_page()
-        for bg, name in ((None, 'sanciones_transparente.png'), ('#14161A', 'sanciones_fondo_oscuro.png')):
-            svg, sw, shh = sheet(bg)
-            await render(page, svg, sw, shh, 2, f'{outdir}/{name}')
-            if not bg: open(f'{outdir}/sanciones.svg', 'w').write(svg)
-        for name, color, body in ICONS:
-            await render(page, single(name, color, body), W, H, 2, f'{outdir}/{name}.png')
-        for bg, name in ((None, 'banderas_transparente.png'), ('#14161A', 'banderas_fondo_oscuro.png')):
-            svg, sw, shh = flag_sheet(bg)
-            await render(page, svg, sw, shh, 2, f'{outdir}/{name}')
-            if not bg: open(f'{outdir}/banderas.svg', 'w').write(svg)
-        for name, kind in FLAGS:
-            await render(page, flag_single(kind), W, H, 2, f'{outdir}/bandera_{name}.png')
-        await b.close()
-
-asyncio.run(main())
+if __name__ == '__main__':
+    main()

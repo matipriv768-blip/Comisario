@@ -1,5 +1,11 @@
 # Cambios
 
+## 1.6.4
+- Íconos nuevos con estilo de señal real de pista: banderas de tela en su asta (verde, amarilla, amarilla total con dos banderas cruzadas, roja, azul, blanca, a cuadros, negra y la blanca y negra de aviso) y placas de comisario para las sanciones (DT, SG, tiempo, levantar el pie, devolver la posición, descalificado y sanción cumplida).
+- Logo e ícono de la ventana nuevos, hechos en SVG igual que los íconos (ya no con Canva).
+- README: imagen de los indicadores actualizada y lámina con todas las banderas y sanciones.
+- Sin cambios en las reglas ni en la largada.
+
 ## 1.6.3
 - Offline, las sanciones propias del juego por cortar pista se apagan mientras el Comisario está activo, para que no se sumen a las de la app. Al apagar el Comisario o cerrar la app vuelven a como estaban. El registro dice si el juego lo permitió; si no, hay que desmarcarlas en Content Manager. Online no se tocan: las fija el servidor.
 

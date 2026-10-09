@@ -205,6 +205,8 @@ Report it in the [Issues](https://github.com/matipriv768-blip/Comisario/issues) 
 - **Winner with penalties applied** when the race ends.
 - **Spanish and English**.
 
+![Flags and penalties](docs/signals.png)
+
 ## Project status and known limits
 
 - Tested in game by its author: offline against the AI at Spa (short rolling start in one and two rows, with up to 14 cars) and on a private server with one or two drivers (penalties, short rolling start, sending a disqualified driver to the pits, administrator, fixed interface and icons). Not tested on public servers or with large online grids. The online two-row start (script 1.12) and the formation radar are not tested in game yet.
@@ -232,7 +234,7 @@ Texts are written in Spanish inside `tr('...')`; the English table `EN` is at th
 
 ## Credits
 
-Created by Matías ([matipriv768-blip](https://github.com/matipriv768-blip)). The code and icons were made with assistance from Claude, by Anthropic; the logo was generated with Canva.
+Created by Matías ([matipriv768-blip](https://github.com/matipriv768-blip)). The code, icons and logo were made with assistance from Claude, by Anthropic, drawn as SVG (`arte/generar_iconos.py`). The logo typeface is Barlow Condensed by Jeremy Tribby, under the SIL Open Font License.
 
 Comisario is an independent project. It is not affiliated with Real Penalty, iRacing, the FIA, Kunos Simulazioni or the authors of Custom Shaders Patch or Content Manager, and uses no code or files from those projects.
 

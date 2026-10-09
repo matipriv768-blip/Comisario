@@ -211,6 +211,8 @@ Repórtalo en la pestaña [Issues](https://github.com/matipriv768-blip/Comisario
 - **Ganador con las sanciones aplicadas** al terminar la carrera.
 - **Español e inglés**.
 
+![Banderas y sanciones](docs/senales.png)
+
 ## Estado del proyecto y límites conocidos
 
 - Probado en el juego por su autor: offline contra la IA en Spa (salida lanzada corta en una y dos filas, con hasta 14 autos) y en un servidor propio con uno o dos pilotos (sanciones, salida lanzada corta, envío a pits del descalificado, administrador, interfaz fija e íconos). No se ha probado en servidores públicos ni con grillas grandes online. La fila doble online (script 1.12) y el radar de la formación aún no se prueban en el juego.
@@ -229,7 +231,7 @@ Repórtalo en la pestaña [Issues](https://github.com/matipriv768-blip/Comisario
 | `apps/lua/Comisario/` | La app: `Comisario.lua`, el manifiesto, la guía `LEEME.txt` y los íconos (`img/`). Es lo que se instala. |
 | `servidor/` | Script online para el servidor y sus instrucciones. |
 | `test/` | Simulador de la API de CSP y las pruebas. |
-| `arte/` | Fuentes vectoriales de los íconos y los scripts que los generan. |
+| `arte/` | Scripts que dibujan los íconos, el logo y la lámina de señales (SVG renderizado con Playwright; la letra Barlow Condensed se instala con `npm install @fontsource/barlow-condensed`). |
 | `docs/` | Imágenes de esta página. |
 
 La lógica se prueba fuera del juego con un simulador de la API de CSP (`test/harness.lua`). Se necesita Python 3 y el paquete `lupa`:
@@ -246,7 +248,7 @@ Ver [CONTRIBUTING.md](CONTRIBUTING.md) para proponer cambios y [CHANGELOG.md](CH
 
 ## Créditos
 
-Creado por Matías ([matipriv768-blip](https://github.com/matipriv768-blip)). El código y los íconos se hicieron con asistencia de Claude, de Anthropic; el logo se generó con Canva.
+Creado por Matías ([matipriv768-blip](https://github.com/matipriv768-blip)). El código, los íconos y el logo se hicieron con asistencia de Claude, de Anthropic, dibujados en SVG (`arte/generar_iconos.py`). La letra del logo es Barlow Condensed, de Jeremy Tribby, con licencia SIL Open Font License.
 
 Comisario es un proyecto independiente. No está afiliado a Real Penalty, iRacing, la FIA, Kunos Simulazioni ni a los autores de Custom Shaders Patch o Content Manager, y no usa código ni archivos de esos proyectos. Algunas reglas (atajo con ventaja, escala de sanciones por velocidad) usan los mismos valores públicos de configuración de Real Penalty.
 
