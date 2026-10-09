@@ -1,6 +1,6 @@
 --[[
   COMISARIO  -  comisario de carrera para Assetto Corsa (app Lua de Custom Shaders Patch)
-  Version 1.5.7  -  offline (contra la IA) y online (con amigos que tengan la app)
+  Version 1.5.8  -  offline (contra la IA) y online (con amigos que tengan la app)
 
   Que hace:
     1. Limites de pista, velocidad en pits y salida en falso.
@@ -22,7 +22,7 @@
   Codigo propio, escrito desde cero. No usa codigo ni archivos de otros plugins.
 ]]
 
-local VERSION = '1.5.7'
+local VERSION = '1.5.8'
 
 -- ---------------------------------------------------------------------------
 -- 1. AJUSTES (se guardan solos entre sesiones)
@@ -1759,13 +1759,16 @@ local GRID_GAP = 10   -- metros entre un auto y el siguiente en la fila de la sa
 -- y LANE la distancia de cada auto al centro de la pareja. La IA que queda lejos de su linea no arranca (en Spa
 -- arranco a 3 m y no a 8 m): por eso la pareja va cerca de esa linea y no al centro de la pista. EDGE es lo minimo
 -- del centro del auto al borde y FAR lo mas lejos de la linea que puede quedar un auto.
-local FORM2 = { ROW_GAP = 12, LANE = 1.9, EDGE = 1.5, FAR = 5 }
+-- STAGGER: el segundo de cada fila va unos metros detras del primero, como en una grilla de verdad. Exactamente
+-- lado a lado, la IA de la pole no arrancaba (Spa, 1.5.4 y 1.5.7).
+local FORM2 = { ROW_GAP = 12, LANE = 1.9, EDGE = 1.5, FAR = 5, STAGGER = 4 }
 
 -- Lugar "slot" de la largada: metros antes de la meta y lado (1 o -1; 0 = al centro, una sola fila)
 function FORM2.spot(slot, twoWide)
   slot = math.max(1, slot or 1)
   if twoWide and not FORM2.single then
-    return FORM2.startMeters() + (math.ceil(slot / 2) - 1) * FORM2.ROW_GAP, (slot % 2 == 1) and 1 or -1
+    local even = slot % 2 == 0
+    return FORM2.startMeters() + (math.ceil(slot / 2) - 1) * FORM2.ROW_GAP + (even and FORM2.STAGGER or 0), even and -1 or 1
   end
   return FORM2.startMeters() + (slot - 1) * GRID_GAP, 0
 end
@@ -2009,7 +2012,8 @@ function RS.aiFollow(dt, f, n)
   local pending = 0
   local two = f.short and cfg.formTwoWide and not FORM2.single
   local mySlot = f.grid or 1
-  local stuck = false
+  local stuck, anyMoving = 0, false
+  f.stuckList = {}
   for p, i in ipairs(f.order) do
     local c = i ~= 0 and not f.freed[i] and ac.getCar(i) or nil
     if c then
@@ -2022,7 +2026,7 @@ function RS.aiFollow(dt, f, n)
       local free = false
       -- auto de referencia: el de delante en la misma columna, a "want" metros (el segundo de la fila doble va al lado del primero)
       local ref, want = f.order[p - 1], 14
-      if two then ref, want = (p > 2) and f.order[p - 2] or (p == 2 and f.order[1] or nil), (p > 2) and FORM2.ROW_GAP + 2 or 0 end
+      if two then ref, want = (p > 2) and f.order[p - 2] or (p == 2 and f.order[1] or nil), (p > 2) and FORM2.ROW_GAP + 2 or FORM2.STAGGER end
       local a = ref and ac.getCar(ref) or nil
       if f.phase ~= 'formation' then
         -- con la verde la IA que larga delante tuyo queda libre: si siguiera limitada, te obligaria a pasarla.
@@ -2035,17 +2039,18 @@ function RS.aiFollow(dt, f, n)
         pcall(function () physics.setAITopSpeed(i, math.huge) end)
       else
         pending = pending + 1
+        if c.speedKmh >= 2 then anyMoving = true end
         -- detenido: no se mueve y el auto que sigue ya anda (o no tiene a quien seguir)
         if f.phase == 'formation' and c.speedKmh < 2 and not c.isInPitlane and (not a or a.speedKmh > 5) then
-          stuck = true
-          f.stuckCar = i
+          stuck = stuck + 1
+          f.stuckList[#f.stuckList + 1] = i
         end
         -- antes de la verde nadie pasa del limite; despues, el techo es el auto de delante
         local top = f.phase == 'formation' and cfg.formSpeed or 400
         local cap = top
         if a and not a.isInPitlane then
           local gap = metersAhead(a, c)
-          local slack = want == 0 and 4 or 0        -- lado a lado se acepta quedar unos metros por delante
+          local slack = (two and p == 2) and 3 or 0  -- el segundo de la fila puede quedar a la altura del primero
           if gap < -slack and gap > -60 then
             cap = 30                -- se adelanto: frena hasta que el otro vuelva a quedar delante
           elseif gap >= -slack and gap < 40 then
@@ -2060,14 +2065,34 @@ function RS.aiFollow(dt, f, n)
     end
   end
   if pending == 0 then f.aiCapped = false end
+  if f.phase == 'formation' and not anyMoving and pending > 0 then stuck = math.max(stuck, pending) end
   if f.phase == 'formation' then RS.watch(f, n, stuck) end
 end
 
 -- Si la IA no arranca en la formacion: primero se la despierta, despues (en fila doble) se arma una sola
 -- fila y, si aun asi no se mueve, se le quita el limite. Todo queda en el registro para poder revisarlo.
+-- Lleva un auto detenido a la linea de la IA, un par de metros mas adelante, si no hay otro auto ahi.
+function RS.unstick(i, len)
+  local c = ac.getCar(i)
+  if not c then return false end
+  return pcall(function ()
+    local a = ac.trackProgressToWorldCoordinate(c.splinePosition + 2 / len)
+    local b = ac.trackProgressToWorldCoordinate(c.splinePosition + 4 / len)
+    local dx, dy, dz = b.x - a.x, b.y - a.y, b.z - a.z
+    local dd = vlen(dx, dy, dz)
+    if dd < 0.001 then error('sin direccion') end
+    for j = 0, ac.getSim().carsCount - 1 do
+      local o = j ~= i and ac.getCar(j)
+      if o and vlen(o.position.x - a.x, o.position.y - a.y, o.position.z - a.z) < 6 then error('ocupado') end
+    end
+    physics.setCarPosition(i, vec3(a.x, a.y + 0.2, a.z), vec3(-dx / dd, -dy / dd, -dz / dd))
+    pcall(physics.awakeCar, i)
+  end)
+end
+
 function RS.watch(f, n, stuck)
   if not f.short or clock - f.startAt < 1.5 then return end
-  f.stillT = stuck and (f.stillT or 0) + 0.2 or 0
+  f.stillT = stuck > 0 and (f.stillT or 0) + 0.2 or 0
   if f.stillT < ((f.wakes or 0) == 0 and 2 or 3) then return end
   f.stillT = 0
   f.wakes = (f.wakes or 0) + 1
@@ -2079,20 +2104,29 @@ function RS.watch(f, n, stuck)
       parts[#parts + 1] = string.format('auto %d: %.0f km/h, limite %s', i, c.speedKmh, tostring(f.cap[i] or '-'))
     end
   end
-  addLog('Formacion: la IA no arranca (detenido el auto ' .. tostring(f.stuckCar) .. '; ' .. table.concat(parts, '; ') .. ')')
+  addLog('Formacion: la IA no arranca (detenidos: ' .. table.concat(f.stuckList, ', ') .. '; ' .. table.concat(parts, '; ') .. ')')
+  local ai = 0
+  for _, i in ipairs(f.order) do if i ~= 0 then ai = ai + 1 end end
   if f.wakes == 1 then
     for _, i in ipairs(f.order) do
       if i ~= 0 then pcall(physics.awakeCar, i) end
     end
     f.cap = {}
     addLog('Formacion: se despierta a la IA')
-  elseif f.wakes == 2 and cfg.formTwoWide and not FORM2.single then
+  elseif f.wakes <= 3 and stuck < math.max(2, math.ceil(ai / 2)) then
+    -- uno o pocos autos detenidos: solo esos van a la linea de la IA; el resto de la fila sigue igual
+    local len = trackLen(ac.getSim())
+    for _, i in ipairs(f.stuckList) do
+      addLog(string.format('Formacion: auto %d llevado a la linea de la IA: %s', i, RS.unstick(i, len) and 'si' or 'no (lugar ocupado)'))
+    end
+  elseif f.wakes <= 3 and cfg.formTwoWide and not FORM2.single then
+    -- casi toda la IA detenida: se arma la fila de nuevo, en una sola columna
     FORM2.single = true
     RS.placeAll(n, trackLen(ac.getSim()), false)
     f.startAt, f.mid, f.cap = clock, {}, {}
     addLog('Formacion: la IA sigue detenida en la fila doble; se arma una sola fila')
     note(1, tr('La IA no arrancó en dos filas: se larga en una sola fila'), 1, false)
-  elseif f.wakes <= 3 then
+  elseif f.wakes <= 4 then
     for _, i in ipairs(f.order) do
       if i ~= 0 then
         f.freed[i] = true
@@ -2226,7 +2260,7 @@ local function updateRolling(dt, sim, car, n)
       local c = ac.getCar(j)
       -- en la fila doble, el que larga a tu lado puede quedar unos metros detras sin que sea adelantamiento
       local tol = (f.short and FORM2.sameRow(startSlot(j, n), f.grid or 1)) and 8 or 3
-      if c and c.speedKmh > 30 and not c.isInPitlane and metersAhead(c, car) < -tol then
+      if c and c.speedKmh > 30 and not c.isInPitlane and (c.wheelsOutside or 0) < 3 and metersAhead(c, car) < -tol then
         f.passT[j] = (f.passT[j] or 0) + dt
         if f.passT[j] > 1.5 then
           f.passT[j] = 0

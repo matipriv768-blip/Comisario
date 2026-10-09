@@ -1666,7 +1666,7 @@ TWO = '''
   newSession(); T.cars[0].racePosition = 2; T.cars[1].racePosition = 1; T.cars[2].racePosition = 3
 '''
 
-scenario('fila doble: 1 y 2 lado a lado y pegados a la linea de la IA, el 3 en la fila siguiente, todos mirando hacia adelante', TWO + '''
+scenario('fila doble: 1 y 2 lado a lado (el 2 escalonado 4 m) y pegados a la linea de la IA, el 3 en la fila siguiente, todos mirando hacia adelante', TWO + '''
   T.sim.timeToSessionStart = -100
   for i = 0, 2 do T.cars[i].splinePosition = 0.98 end
   run(0.5)
@@ -1677,7 +1677,7 @@ scenario('fila doble: 1 y 2 lado a lado y pegados a la linea de la IA, el 3 en l
     if math.abs(t.dir.z + 1) > 0.001 then facing = false end
   end
   return facing and #T.teleports == 3
-    and math.abs(p[1].z - 3000) < 0.5 and math.abs(p[0].z - 3000) < 0.5 and math.abs(p[2].z - 2988) < 0.5
+    and math.abs(p[1].z - 3000) < 0.5 and math.abs(p[0].z - 2996) < 0.5 and math.abs(p[2].z - 2988) < 0.5
     and math.abs(p[1].x - p[0].x) > 3.5 and math.abs(p[1].x - p[2].x) < 0.5 and math.abs(p[1].x) < 2.5 and math.abs(p[0].x) < 2.5
 ''')
 
@@ -1747,7 +1747,7 @@ scenario('formacion: un auto de la IA detenido mientras el de delante ya anda ac
   for k = 1, 24 do
     place(1, 3000 + k * 3, 40, 1); place(2, 3000 + k * 3, 40, -3); place(3, 2988, 0, 1); place(0, 2988 + k, 20, -3); run(0.25)
   end
-  return (T.awake[3] or 0) >= 1 and logText():find('detenido el auto 3', 1, true) ~= nil
+  return (T.awake[3] or 0) >= 1 and logText():find('detenidos: 3', 1, true) ~= nil
 ''')
 
 scenario('la fila se arma en el primer tramo recto: si a 500 m de la meta la pista es curva, el primero parte mas atras', TWO + '''
@@ -1763,7 +1763,7 @@ scenario('la fila se arma en el primer tramo recto: si a 500 m de la meta la pis
   for i = 0, 2 do T.cars[i].splinePosition = 0.98 end
   run(6)
   -- recto desde 690 m: el primero a 700 m (z = 2800), el segundo a su lado y el tercero 12 m detras
-  return math.abs(T.cars[1].position.z - 2800) < 0.5 and math.abs(T.cars[0].position.z - 2800) < 0.5
+  return math.abs(T.cars[1].position.z - 2800) < 0.5 and math.abs(T.cars[0].position.z - 2796) < 0.5
     and math.abs(T.cars[2].position.z - 2788) < 0.5 and logText():find('parte a 700 m', 1, true) ~= nil
 ''')
 
@@ -1772,6 +1772,32 @@ scenario('en una recta la fila queda donde se eligio en los ajustes', TWO + '''
   for i = 0, 2 do T.cars[i].splinePosition = 0.98 end
   run(6)
   return math.abs(T.cars[1].position.z - 3000) < 0.5 and logText():find('parte a 500 m', 1, true) ~= nil
+''')
+
+scenario('formacion: si solo la pole no arranca, se la lleva a la linea de la IA y el resto de la fila no se mueve', TWO + '''
+  T.sim.carsCount = 4
+  newSession(); T.cars[3] = T.newCar(3); T.cars[0].racePosition = 4; T.cars[1].racePosition = 1; T.cars[2].racePosition = 2; T.cars[3].racePosition = 3
+  T.cfg.writeLog = true; T.sim.isSessionStarted = false; T.sim.timeToSessionStart = 15000
+  for i = 0, 3 do T.cars[i].splinePosition = 0.98 end
+  run(2)
+  T.sim.isSessionStarted = true; T.sim.timeToSessionStart = -100
+  local x1 = T.cars[1].position.x
+  for k = 1, 40 do
+    -- la pole (1) no se mueve; los demas avanzan
+    T.cars[1].speedKmh = 0
+    place(2, 3020 + k * 3, 40, T.cars[2].position.x); place(3, 3010 + k * 3, 40, T.cars[3].position.x); place(0, 3000 + k * 3, 40, T.cars[0].position.x)
+    run(0.25)
+  end
+  return logText():find('auto 1 llevado a la linea de la IA: si', 1, true) ~= nil and T.cars[1].position.x == 0 and x1 ~= 0
+    and not logText():find('una sola fila', 1, true)
+''')
+
+scenario('formacion: adelantar a un auto que se salio de la pista no obliga a devolver el puesto', SHORT_AI + '''
+  T.sim.timeToSessionStart = -100; run(0.5)
+  place(1, 3000, 60); place(0, 2990, 60); place(2, 2980, 60); run(5)
+  T.cars[1].wheelsOutside = 4
+  place(1, 3050, 40, 6); place(0, 3060, 60); run(3)
+  return msgCount('DEVUELVE') == 0
 ''')
 
 scenario('fila doble: cada auto movido se despierta en el motor de fisica', TWO + '''
@@ -1828,7 +1854,7 @@ scenario('fila doble: la IA de al lado se mantiene a tu altura y la de atras sig
   newSession(); T.cars[3] = T.newCar(3); T.cars[0].racePosition = 1; T.cars[1].racePosition = 2; T.cars[2].racePosition = 3; T.cars[3].racePosition = 4
   T.sim.timeToSessionStart = -100; run(0.5)
   -- fila: 0 (tu) y 1 a tu lado; 2 detras de ti y 3 detras de 1. Vas a 50
-  place(0, 3200, 50, -2.6); place(1, 3200, 100, 2.6); place(2, 3188, 100, -2.6); place(3, 3170, 100, 2.6); run(1)
+  place(0, 3200, 50, -2.6); place(1, 3196, 100, 2.6); place(2, 3188, 100, -2.6); place(3, 3170, 100, 2.6); run(1)
   local beside = last(T.aiCaps[1]) <= 51 and last(T.aiCaps[1]) >= 45
   local behind = last(T.aiCaps[2]) < 50
   local column = last(T.aiCaps[3]) > 60                    -- 30 m detras de su auto de referencia: puede acercarse
