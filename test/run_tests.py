@@ -1931,6 +1931,26 @@ scenario('radar con la pareja corrida hacia un lado: el carril se mide desde el 
     and wrong:find('PASATE A LA DERECHA', 1, true) ~= nil
 ''')
 
+scenario('offline, las sanciones propias del juego se apagan con el Comisario activo y vuelven al apagarlo', '''
+  T.cfg.writeLog = true; T.sim.penaltiesEnabled = true
+  place(0, 0, 100); run(6)
+  local off = T.sim.penaltiesEnabled == false and logText():find('apagadas mientras', 1, true) ~= nil
+  T.cfg.enabled = false; run(1)
+  return off and T.sim.penaltiesEnabled == true
+''')
+
+scenario('si el juego no deja apagar sus sanciones, el registro dice que se apaguen en Content Manager', '''
+  T.cfg.writeLog = true; T.sim.penaltiesEnabled = true; T.penFail = true
+  place(0, 0, 100); run(6)
+  return logText():find('apágalas en Content Manager', 1, true) ~= nil or logText():find('apagalas en Content Manager', 1, true) ~= nil
+''')
+
+scenario('online no se tocan las sanciones del juego (las fija el servidor)', '''
+  T.sim.isOnlineRace = true; T.sim.penaltiesEnabled = true
+  place(0, 0, 100); run(3)
+  return T.sim.penaltiesEnabled == true and (T.penCalls or 0) == 0
+''')
+
 scenario('fila doble: cada auto movido se despierta en el motor de fisica', TWO + '''
   T.sim.isSessionStarted = false; T.sim.timeToSessionStart = 15000
   for i = 0, 2 do T.cars[i].splinePosition = 0.98 end

@@ -1,6 +1,6 @@
 --[[
   COMISARIO  -  comisario de carrera para Assetto Corsa (app Lua de Custom Shaders Patch)
-  Version 1.6.2  -  offline (contra la IA) y online (con amigos que tengan la app)
+  Version 1.6.3  -  offline (contra la IA) y online (con amigos que tengan la app)
 
   Que hace:
     1. Limites de pista, velocidad en pits y salida en falso.
@@ -22,7 +22,7 @@
   Codigo propio, escrito desde cero. No usa codigo ni archivos de otros plugins.
 ]]
 
-local VERSION = '1.6.2'
+local VERSION = '1.6.3'
 
 -- ---------------------------------------------------------------------------
 -- 1. AJUSTES (se guardan solos entre sesiones)
@@ -2060,6 +2060,38 @@ function RS.checkSides(n, len)
   return false
 end
 
+-- Offline, las sanciones propias del juego (cortes de pista) se apagan mientras el Comisario esta activo, para que
+-- no se sumen a las de la app. Se usa la misma funcion que el modo de carreras 1 contra 1 de CSP. Al apagar el
+-- Comisario o cerrar la app se dejan como estaban. Online las decide el servidor (pestana RULES del preset).
+RS.basePen = { orig = nil, tried = false }
+function RS.baseRules(sim)
+  local b = RS.basePen
+  local want = not online and cfg.enabled
+  if want and not b.tried then
+    b.tried = true
+    if sim.penaltiesEnabled == false then
+      addLog('Sanciones del juego: ya estaban apagadas')
+      return
+    end
+    local ok = pcall(function () physics.setPenalties(false) end)
+    b.orig = ok and true or nil
+    b.check = clock
+    if not ok then
+      addLog('Sanciones del juego: el juego no deja apagarlas desde la app; apágalas en Content Manager')
+    end
+  elseif b.check and clock - b.check > 1 then
+    b.check = nil
+    addLog(sim.penaltiesEnabled == false and 'Sanciones del juego: apagadas mientras el Comisario está activo'
+      or 'Sanciones del juego: siguen activas; apágalas en Content Manager')
+  elseif not want and b.orig then
+    pcall(function () physics.setPenalties(true) end)
+    b.orig, b.tried = nil, false
+    addLog('Sanciones del juego: vuelven a estar activas')
+  elseif not want then
+    b.tried = false
+  end
+end
+
 -- Offline: cada auto de la IA anda a la velocidad del que tiene delante en la fila, para que nadie adelante
 -- antes de la largada. Con la verde todos aceleran, pero cada uno sigue sin poder pasar al de delante hasta
 -- cruzar la meta: recien ahi queda libre. El primero de la fila queda libre con la verde.
@@ -2752,6 +2784,7 @@ local function step(dt)
     S.lapSeen = car.lapCount
   end
 
+  RS.baseRules(sim)                 -- antes de salir: si se apago el Comisario, las del juego vuelven
   if not cfg.enabled then return end
 
   checkJumpStart(sim, car)
@@ -2839,6 +2872,7 @@ end)
 -- al cerrar la app, la IA queda sin limites de velocidad
 ac.onRelease(function ()
   releaseAllAi()
+  if RS.basePen.orig then pcall(function () physics.setPenalties(true) end) end
   saveLog()
 end)
 

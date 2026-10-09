@@ -143,6 +143,7 @@ physics = {
     end
   end,
   setCarNoInput = function (v) T.noInput = v; T.noInputCalls = (T.noInputCalls or 0) + 1 end,
+  setPenalties = function (v) if T.penFail then error('no permitido') end T.sim.penaltiesEnabled = v; T.penCalls = (T.penCalls or 0) + 1 end,
   -- auto despertado en el motor de fisica
   awakeCar = function (i) T.awake = T.awake or {}; T.awake[i] = (T.awake[i] or 0) + 1 end,
   -- rayo hacia abajo: el suelo es plano salvo que la prueba ponga T.groundD (distancia que devuelve el rayo)
