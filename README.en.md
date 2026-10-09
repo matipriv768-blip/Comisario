@@ -53,6 +53,8 @@ Nothing else is needed besides the app.
 2. Open the **Comisario** window. It is already watching.
 3. In the gear menu, **Start** tab, choose a **Standing** or **Rolling** start.
 
+While Comisario is on, the app turns off the game's own track-cut penalties so they do not add up with its own, and restores them when you turn it off. If the log says the game did not allow it, untick penalties in Content Manager before joining.
+
 Two things need the track to be authorised, because Assetto Corsa does not let an app move cars or control the AI without permission:
 
 - The **short rolling start** (cars line up near the finish line).

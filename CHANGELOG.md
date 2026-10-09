@@ -1,5 +1,8 @@
 # Cambios
 
+## 1.6.3
+- Offline, las sanciones propias del juego por cortar pista se apagan mientras el Comisario está activo, para que no se sumen a las de la app. Al apagar el Comisario o cerrar la app vuelven a como estaban. El registro dice si el juego lo permitió; si no, hay que desmarcarlas en Content Manager. Online no se tocan: las fija el servidor.
+
 ## 1.6.2
 - Corregido: el espacio a cada lado de la línea de la IA se usaba al revés. Por eso en Monza el segundo de cada fila partía en el pasto, en Spa la fila quedaba sobre el piano y el radar a veces mandaba al carril equivocado.
 - Al armar la fila en la cuenta regresiva, la app revisa si algún auto quedó con ruedas fuera de la pista. Si hay alguno, prueba el otro orden y se queda con el que deja menos autos fuera. Queda anotado en el registro.

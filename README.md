@@ -53,6 +53,8 @@ No hace falta nada más que la app instalada.
 2. Abre la ventana **Comisario**. Ya está vigilando.
 3. En el engranaje, pestaña **Largada**, elige salida **Parada** o **Lanzada**.
 
+Mientras el Comisario está activo, la app apaga las sanciones propias del juego por cortar pista, para que no se sumen a las suyas, y las deja como estaban al apagarlo. Si el registro dice que el juego no la dejó, desmarca las penalizaciones en Content Manager antes de entrar.
+
 Dos cosas requieren autorizar la pista, porque Assetto Corsa no deja que una app mueva autos ni controle a la IA sin permiso:
 
 - La **salida lanzada corta** (los autos parten en fila cerca de la meta).
